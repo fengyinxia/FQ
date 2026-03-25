@@ -1,0 +1,5 @@
+-keep class com.fuck.fanqie.MainHook { *; }
+-keep class * implements de.robv.android.xposed.IXposedHookLoadPackage
+-keep class org.luckypray.dexkit.** { *; }
+-keep class kotlin.Metadata { *; }
+-dontwarn kotlin.jvm.internal.SourceDebugExtension
