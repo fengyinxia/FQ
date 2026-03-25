@@ -17,6 +17,7 @@ public class FrameworkHooks extends BaseHook {
     @Override
     public void apply() {
         applyForestUtilsHooks();
+        applyThreadUtilsHooks();
         applyReportManagerHooks();
         applyNpthHooks();
     }

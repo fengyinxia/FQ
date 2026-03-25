@@ -107,19 +107,93 @@ public class FeatureHooks extends BaseHook {
             Class<?> runnableClass = XposedHelpers.findClass("com.dragon.read.pop.IPopProxy$IRunnable", hostClassLoader);
             Class<?> listenerClass = XposedHelpers.findClass("com.dragon.read.pop.IPopProxy$IListener", hostClassLoader);
             Class<?> silkRoadClass = XposedHelpers.findClass("com.bytedance.component.silk.road.subwindow.b", hostClassLoader);
-            XC_MethodReplacement replacement = XC_MethodReplacement.returnConstant(null);
-
-            XposedHelpers.findAndHookMethod(popProxyClass, "enqueue",
-                    Activity.class, propertiesClass, runnableClass, listenerClass, String.class, replacement);
-            XposedHelpers.findAndHookMethod(popProxyClass, "popup",
-                    Activity.class, propertiesClass, runnableClass, listenerClass, String.class, replacement);
-            XposedHelpers.findAndHookMethod(popProxyClass, "popup",
-                    Activity.class, propertiesClass, silkRoadClass, listenerClass, String.class, replacement);
-
-            XposedBridge.log("FQHook+applyPopProxyHooks: 已Hook PopProxy相关方法");
+            hookPopProxyMethod(popProxyClass, "enqueue", propertiesClass, runnableClass, listenerClass);
+            hookPopProxyMethod(popProxyClass, "popup", propertiesClass, runnableClass, listenerClass);
+            hookPopProxyMethod(popProxyClass, "popup", propertiesClass, silkRoadClass, listenerClass);
+            XposedBridge.log("FQHook+applyPopProxyHooks: 已启用 PopProxy 条件拦截 (privacy_dialog 放行)");
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+applyPopProxyHooks: Hook PopProxy失败: ", throwable);
         }
+    }
+
+    private void hookPopProxyMethod(Class<?> popProxyClass, final String methodName,
+                                    Class<?> propertiesClass, Class<?> actionClass,
+                                    Class<?> listenerClass) {
+        XposedHelpers.findAndHookMethod(
+                popProxyClass,
+                methodName,
+                Activity.class, propertiesClass, actionClass, listenerClass, String.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        String hookedSignature = param.method == null ? "null" : param.method.toString();
+                        Activity activity = param.args[0] instanceof Activity ? (Activity) param.args[0] : null;
+                        Object properties = param.args[1];
+                        Object action = param.args[2];
+                        Object listener = param.args[3];
+                        Object scene = param.args[4];
+                        boolean allow = shouldAllowPopup(properties);
+                        XposedBridge.log("FQHook+PopProxy: [LOG] " + methodName
+                                + ", hookedSignature=" + hookedSignature
+                                + ", expectedActionType=" + actionClass.getName()
+                                + ", decision=" + (allow ? "allow" : "block")
+                                + ", activity=" + (activity == null ? "null" : activity.getClass().getName())
+                                + ", properties=" + describeObject(properties)
+                                + ", action=" + (action == null ? "null" : action.getClass().getName())
+                                + ", listener=" + (listener == null ? "null" : listener.getClass().getName())
+                                + ", scene=" + String.valueOf(scene));
+                        if (!allow) {
+                            param.setResult(null);
+                        }
+                    }
+                }
+        );
+    }
+
+    private boolean shouldAllowPopup(Object properties) {
+        if (properties == null) {
+            return false;
+        }
+        String className = properties.getClass().getName();
+        return className.contains("privacy_dialog");
+    }
+
+    private String describeObject(Object target) {
+        if (target == null) {
+            return "null";
+        }
+        StringBuilder builder = new StringBuilder(target.getClass().getName());
+        int count = 0;
+        for (java.lang.reflect.Field field : target.getClass().getDeclaredFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            builder.append(count == 0 ? "{" : ", ");
+            if (count == 6) {
+                builder.append("...");
+                count++;
+                break;
+            }
+            builder.append(field.getName()).append('=');
+            try {
+                field.setAccessible(true);
+                Object value = field.get(target);
+                if (value == null || value instanceof CharSequence || value instanceof Number
+                        || value instanceof Boolean || value instanceof Character
+                        || value.getClass().isEnum()) {
+                    builder.append(String.valueOf(value));
+                } else {
+                    builder.append('<').append(value.getClass().getName()).append('>');
+                }
+            } catch (Throwable throwable) {
+                builder.append("<error>");
+            }
+            count++;
+        }
+        if (count > 0) {
+            builder.append('}');
+        }
+        return builder.toString();
     }
 
     public void applyUpdateHooks() {
