@@ -1,5 +1,6 @@
 package com.fuck.fanqie;
 
+import com.fuck.fanqie.cache.TargetScanResult;
 import com.fuck.fanqie.finders.AdFinder;
 import com.fuck.fanqie.finders.FeatureFinder;
 import com.fuck.fanqie.finders.UIFinder;
@@ -9,20 +10,13 @@ import org.luckypray.dexkit.DexKitBridge;
 import de.robv.android.xposed.XposedBridge;
 
 public class HookFinder {
-    private final AdFinder adFinder;
-    private final FeatureFinder featureFinder;
-    private final UIFinder uiFinder;
-
-    public HookFinder(ClassLoader hostClassLoader, MethodCacheManager cacheManager) {
-        adFinder = new AdFinder(hostClassLoader, cacheManager);
-        featureFinder = new FeatureFinder(hostClassLoader, cacheManager);
-        uiFinder = new UIFinder(hostClassLoader, cacheManager);
-    }
-
-    public void findTargets(DexKitBridge bridge) {
+    public TargetScanResult findTargets(DexKitBridge bridge) {
         XposedBridge.log("FQHook+findTargets: 开始查找目标");
-        adFinder.find(bridge);
-        featureFinder.find(bridge);
-        uiFinder.find(bridge);
+        TargetScanResult scanResult = new TargetScanResult();
+        new AdFinder(scanResult).find(bridge);
+        new FeatureFinder(scanResult).find(bridge);
+        new UIFinder(scanResult).find(bridge);
+        XposedBridge.log("FQHook+findTargets: 目标查找完成, entryCount=" + scanResult.size());
+        return scanResult;
     }
 }

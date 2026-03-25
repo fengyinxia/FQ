@@ -1,7 +1,7 @@
 package com.fuck.fanqie.finders;
 
 import com.fuck.fanqie.HookTargets;
-import com.fuck.fanqie.MethodCacheManager;
+import com.fuck.fanqie.cache.TargetScanResult;
 
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
@@ -12,8 +12,8 @@ import org.luckypray.dexkit.result.ClassData;
 import org.luckypray.dexkit.result.MethodData;
 
 public class AdFinder extends BaseFinder {
-    public AdFinder(ClassLoader hostClassLoader, MethodCacheManager cacheManager) {
-        super(hostClassLoader, cacheManager);
+    public AdFinder(TargetScanResult scanResult) {
+        super(scanResult);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class AdFinder extends BaseFinder {
                                         .returnType(Boolean.TYPE)
                         )
                 ));
-                cacheManager.cacheMethod(HookTargets.KEY_AD_CONFIG_METHOD, adConfigMethod);
+                cacheMethod(HookTargets.KEY_AD_CONFIG_METHOD, adConfigMethod);
             }
 
             try {
@@ -53,7 +53,7 @@ public class AdFinder extends BaseFinder {
                                 })
                         )
                 ));
-                cacheManager.cacheClass(HookTargets.KEY_AD_FREE_CLASS, adFreeClass);
+                cacheClass(HookTargets.KEY_AD_FREE_CLASS, adFreeClass);
                 if (adFreeClass != null) {
                     MethodData adFreeMethod = first(bridge.findMethod(
                             FindMethod.create().matcher(
@@ -64,7 +64,7 @@ public class AdFinder extends BaseFinder {
                                             .returnType(Boolean.TYPE)
                             )
                     ));
-                    cacheManager.cacheMethod(HookTargets.KEY_AD_FREE_METHOD, adFreeMethod);
+                    cacheMethod(HookTargets.KEY_AD_FREE_METHOD, adFreeMethod);
                 }
             } catch (Throwable throwable) {
                 log("查找免广告方法失败", throwable);
@@ -86,7 +86,7 @@ public class AdFinder extends BaseFinder {
                                             .paramCount(0)
                             )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_LUCKY_DOG_METHOD, luckyDogMethod);
+            cacheMethod(HookTargets.KEY_LUCKY_DOG_METHOD, luckyDogMethod);
         } catch (Throwable throwable) {
             log("查找 LuckyDog 方法失败", throwable);
         }
@@ -101,7 +101,7 @@ public class AdFinder extends BaseFinder {
                             })
                     )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_POP_METHOD, popMethod);
+            cacheMethod(HookTargets.KEY_POP_METHOD, popMethod);
         } catch (Throwable throwable) {
             log("查找弹窗方法失败", throwable);
         }

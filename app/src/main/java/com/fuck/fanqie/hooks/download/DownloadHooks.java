@@ -3,7 +3,6 @@ package com.fuck.fanqie.hooks.download;
 import android.app.Application;
 import android.util.Log;
 
-import com.fuck.fanqie.MethodCacheManager;
 import com.fuck.fanqie.hooks.BaseHook;
 import com.fuck.fanqie.hooks.HookUtils;
 
@@ -26,8 +25,8 @@ public class DownloadHooks extends BaseHook {
         }
     };
 
-    public DownloadHooks(MethodCacheManager cacheManager, ClassLoader hostClassLoader) {
-        super(cacheManager, hostClassLoader);
+    public DownloadHooks(ClassLoader hostClassLoader) {
+        super(hostClassLoader);
         this.contentProcessor = new DownloadContentProcessor(hostClassLoader);
         this.exporter = new DownloadExporter();
     }

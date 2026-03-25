@@ -1,7 +1,5 @@
 package com.fuck.fanqie.hooks;
 
-import com.fuck.fanqie.MethodCacheManager;
-
 import org.json.JSONObject;
 
 import java.util.Map;
@@ -12,8 +10,8 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class FrameworkHooks extends BaseHook {
-    public FrameworkHooks(MethodCacheManager cacheManager, ClassLoader hostClassLoader) {
-        super(cacheManager, hostClassLoader);
+    public FrameworkHooks(ClassLoader hostClassLoader) {
+        super(hostClassLoader);
     }
 
     @Override

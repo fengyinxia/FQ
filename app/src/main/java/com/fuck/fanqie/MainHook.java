@@ -6,6 +6,10 @@ import android.content.ContextWrapper;
 import android.content.pm.PackageInfo;
 import android.os.Process;
 
+import com.fuck.fanqie.cache.CachedTargets;
+import com.fuck.fanqie.cache.TargetScanResult;
+import com.fuck.fanqie.cache.TargetRepository;
+
 import org.luckypray.dexkit.DexKitBridge;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -18,7 +22,8 @@ public class MainHook implements IXposedHookLoadPackage {
     private static final String TAG = "FQHook";
     private static final String TARGET_PACKAGE = "com.dragon.read";
 
-    private static MethodCacheManager cacheManager;
+    private static TargetRepository targetRepository;
+    private static CachedTargets cachedTargets;
     private static HookFinder hookFinder;
     private static HookApplier hookApplier;
     private static ClassLoader hostClassLoader;
@@ -83,25 +88,29 @@ public class MainHook implements IXposedHookLoadPackage {
             hostClassLoader = context.getClassLoader();
             String packageCodePath = context.getPackageCodePath();
 
-            cacheManager = new MethodCacheManager(context, hostClassLoader);
-            hookApplier = new HookApplier(cacheManager, hostClassLoader);
+            targetRepository = new TargetRepository(context, hostClassLoader);
+            cachedTargets = new CachedTargets(targetRepository);
+            hookApplier = new HookApplier(cachedTargets, hostClassLoader);
 
             long currentAppVersion = getAppVersionCode(context);
-            long cachedAppVersion = cacheManager.getCachedVersionCode();
-            int currentModuleVersion = cacheManager.getCurrentModuleVersionCode();
-            int cachedModuleVersion = cacheManager.getCachedModuleVersionCode();
+            long cachedAppVersion = targetRepository.getCachedVersionCode();
+            int currentModuleVersion = targetRepository.getCurrentModuleVersionCode();
+            int cachedModuleVersion = targetRepository.getCachedModuleVersionCode();
+            String currentModuleFingerprint = targetRepository.getCurrentModuleFingerprint();
+            String cachedModuleFingerprint = targetRepository.getCachedModuleFingerprint();
 
             log("目标应用版本: " + currentAppVersion + " (缓存: " + cachedAppVersion + ")");
             log("当前模块版本: " + currentModuleVersion + " (缓存: " + cachedModuleVersion + ")");
+            log("当前模块指纹: " + currentModuleFingerprint + " (缓存: " + cachedModuleFingerprint + ")");
 
             boolean shouldRefreshCache = currentAppVersion != cachedAppVersion
-                    || currentModuleVersion != cachedModuleVersion;
+                    || !currentModuleFingerprint.equals(cachedModuleFingerprint);
 
             if (shouldRefreshCache) {
                 log("检测到版本变化，开始重新查找方法...");
-                hookFinder = new HookFinder(hostClassLoader, cacheManager);
-                if (runDexKitSearch(packageCodePath)) {
-                    cacheManager.updateVersionCode(currentAppVersion);
+                hookFinder = new HookFinder();
+                if (!runDexKitSearch(packageCodePath, currentAppVersion)) {
+                    log("刷新缓存失败，继续使用旧缓存");
                 }
             } else {
                 log("版本无变化，使用缓存方法");
@@ -127,15 +136,17 @@ public class MainHook implements IXposedHookLoadPackage {
         }
     }
 
-    private boolean runDexKitSearch(String packageCodePath) {
+    private boolean runDexKitSearch(String packageCodePath, long currentAppVersion) {
         try (DexKitBridge bridge = DexKitBridge.create(packageCodePath)) {
-            cacheManager.beginBatchEdit();
-            hookFinder.findTargets(bridge);
-            cacheManager.commitBatch();
-            log("DexKit 方法查找完成");
-            return true;
+            TargetScanResult scanResult = hookFinder.findTargets(bridge);
+            boolean published = targetRepository.publishFreshScan(currentAppVersion, scanResult);
+            if (published) {
+                log("DexKit 方法查找并发布完成");
+            } else {
+                log("DexKit 方法查找完成，但发布缓存失败");
+            }
+            return published;
         } catch (Throwable throwable) {
-            cacheManager.commitBatch();
             log("DexKit 查找失败: " + throwable.getMessage());
             return false;
         }

@@ -30,6 +30,41 @@ public final class HookTargets {
     public static final String KEY_UPDATE_METHOD = "method_update";
     public static final String KEY_VIP_INFO_MODEL_CLASS = "class_vip_info_model";
 
+    private static final String[] ALL_KEYS = new String[]{
+            KEY_ABTEST_METHOD,
+            KEY_AD_CONFIG_METHOD,
+            KEY_AD_FREE_CLASS,
+            KEY_AD_FREE_METHOD,
+            KEY_AUTHOR_SAY_METHOD,
+            KEY_BOOK_NAME_CLICK_METHOD,
+            KEY_CHAPTER_END_CONTROL_METHOD,
+            KEY_CHAPTER_END_HOT_COMMENT_METHOD,
+            KEY_CHECK_UPDATE_METHOD,
+            KEY_COVER_HOT_COMMENT_METHOD,
+            KEY_DYNAMIC_METHOD,
+            KEY_FEATURE_LIST_LOAD_CLASS,
+            KEY_FILTER_BANNER_METHOD,
+            KEY_FILTER_DATA_METHOD,
+            KEY_GAME_AREA_METHOD,
+            KEY_LUCKY_DOG_METHOD,
+            KEY_MSG_AREA_METHOD,
+            KEY_MY_PAGE_SEARCH_BAR_METHOD,
+            KEY_MY_PAGE_VIP_ENTRANCE_METHOD,
+            KEY_POP_METHOD,
+            KEY_RED_DOT_METHOD,
+            KEY_REMOVE_RANK_METHOD,
+            KEY_SEARCH_BAR_METHOD,
+            KEY_SPLASH_K1_METHOD,
+            KEY_TAB_METHOD,
+            KEY_TOP_TAP_METHOD,
+            KEY_UPDATE_METHOD,
+            KEY_VIP_INFO_MODEL_CLASS
+    };
+
     private HookTargets() {
+    }
+
+    public static String[] allKeys() {
+        return ALL_KEYS.clone();
     }
 }

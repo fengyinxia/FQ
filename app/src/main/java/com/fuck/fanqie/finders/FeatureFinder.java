@@ -1,7 +1,7 @@
 package com.fuck.fanqie.finders;
 
 import com.fuck.fanqie.HookTargets;
-import com.fuck.fanqie.MethodCacheManager;
+import com.fuck.fanqie.cache.TargetScanResult;
 
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
@@ -14,8 +14,8 @@ import org.luckypray.dexkit.result.MethodData;
 import java.lang.reflect.Modifier;
 
 public class FeatureFinder extends BaseFinder {
-    public FeatureFinder(ClassLoader hostClassLoader, MethodCacheManager cacheManager) {
-        super(hostClassLoader, cacheManager);
+    public FeatureFinder(TargetScanResult scanResult) {
+        super(scanResult);
     }
 
     @Override
@@ -53,7 +53,7 @@ public class FeatureFinder extends BaseFinder {
                                         .returnType("android.view.View")
                         )
                 ));
-                cacheManager.cacheMethod(HookTargets.KEY_AUTHOR_SAY_METHOD, authorSayMethod);
+                cacheMethod(HookTargets.KEY_AUTHOR_SAY_METHOD, authorSayMethod);
             }
         } catch (Throwable throwable) {
             log("查找作者说方法失败", throwable);
@@ -68,7 +68,7 @@ public class FeatureFinder extends BaseFinder {
                                     .addInvoke("Lcom/dragon/read/util/BookUtils;->isPublishBookGenreType(Ljava/lang/String;)Z")
                     )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD, coverHotCommentMethod);
+            cacheMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD, coverHotCommentMethod);
         } catch (Throwable throwable) {
             log("查找封面热门评论控件失败", throwable);
         }
@@ -82,7 +82,7 @@ public class FeatureFinder extends BaseFinder {
                                             .addInvoke("Lcom/dragon/read/base/ui/util/ScreenUtils;->getScreenWidth(Landroid/content/Context;)I")
                             )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_CHAPTER_END_CONTROL_METHOD, chapterEndControlMethod);
+            cacheMethod(HookTargets.KEY_CHAPTER_END_CONTROL_METHOD, chapterEndControlMethod);
         } catch (Throwable throwable) {
             log("查找章末控件失败", throwable);
         }
@@ -95,7 +95,7 @@ public class FeatureFinder extends BaseFinder {
                                     .paramTypes(new String[]{"java.lang.String"})
                     )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_CHAPTER_END_HOT_COMMENT_METHOD, chapterEndHotCommentMethod);
+            cacheMethod(HookTargets.KEY_CHAPTER_END_HOT_COMMENT_METHOD, chapterEndHotCommentMethod);
         } catch (Throwable throwable) {
             log("查找章末热评方法失败", throwable);
         }
@@ -117,7 +117,7 @@ public class FeatureFinder extends BaseFinder {
                 log("未找到启动页跳转方法");
                 return;
             }
-            cacheManager.cacheMethod(HookTargets.KEY_SPLASH_K1_METHOD, splashMethod);
+            cacheMethod(HookTargets.KEY_SPLASH_K1_METHOD, splashMethod);
         } catch (Throwable throwable) {
             log("查找启动页跳转方法失败", throwable);
         }
@@ -133,7 +133,7 @@ public class FeatureFinder extends BaseFinder {
                                     .addUsingString("reason_alpha_pkg_update_bg_download")
                     )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_UPDATE_METHOD, updateMethod);
+            cacheMethod(HookTargets.KEY_UPDATE_METHOD, updateMethod);
         } catch (Throwable throwable) {
             log("查找更新处理方法失败", throwable);
         }
@@ -149,7 +149,7 @@ public class FeatureFinder extends BaseFinder {
                                     .addUsingString("check")
                     )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_CHECK_UPDATE_METHOD, checkUpdateMethod);
+            cacheMethod(HookTargets.KEY_CHECK_UPDATE_METHOD, checkUpdateMethod);
         } catch (Throwable throwable) {
             log("查找检查更新方法失败", throwable);
         }
@@ -164,7 +164,7 @@ public class FeatureFinder extends BaseFinder {
                                     .usingStrings(new String[]{"key_user_activity_level"})
                     )
             ));
-            cacheManager.cacheMethod(HookTargets.KEY_ABTEST_METHOD, abtestMethod);
+            cacheMethod(HookTargets.KEY_ABTEST_METHOD, abtestMethod);
         } catch (Throwable throwable) {
             log("查找 abtest 方法失败", throwable);
         }

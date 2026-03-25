@@ -3,7 +3,7 @@ package com.fuck.fanqie.hooks;
 import android.view.View;
 
 import com.fuck.fanqie.HookTargets;
-import com.fuck.fanqie.MethodCacheManager;
+import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -21,8 +21,11 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class UIHooks extends BaseHook {
-    public UIHooks(MethodCacheManager cacheManager, ClassLoader hostClassLoader) {
-        super(cacheManager, hostClassLoader);
+    private final CachedTargets cachedTargets;
+
+    public UIHooks(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
+        super(hostClassLoader);
+        this.cachedTargets = cachedTargets;
     }
 
     @Override
@@ -41,7 +44,7 @@ public class UIHooks extends BaseHook {
 
     private void applyRemoveSideBarHooks() {
         for (String key : new String[]{HookTargets.KEY_GAME_AREA_METHOD, HookTargets.KEY_MSG_AREA_METHOD}) {
-            Method method = cacheManager.getMethod(key);
+            Method method = cachedTargets.method(key);
             if (method != null) {
                 XposedBridge.hookMethod(method, XC_MethodReplacement.returnConstant(null));
             }
@@ -100,7 +103,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyCustomVipHooks() {
-        Class<?> vipInfoModelClass = cacheManager.getClass(HookTargets.KEY_VIP_INFO_MODEL_CLASS);
+        Class<?> vipInfoModelClass = cachedTargets.type(HookTargets.KEY_VIP_INFO_MODEL_CLASS);
         if (vipInfoModelClass == null) {
             return;
         }
@@ -121,7 +124,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyMyPageVipEntranceHooks() {
-        Method method = cacheManager.getMethod(HookTargets.KEY_MY_PAGE_VIP_ENTRANCE_METHOD);
+        Method method = cachedTargets.method(HookTargets.KEY_MY_PAGE_VIP_ENTRANCE_METHOD);
         if (method != null) {
             XposedBridge.hookMethod(method, XC_MethodReplacement.returnConstant(null));
             XposedBridge.log("FQHook+applyHooks: 已禁用我的页面VIP入口");
@@ -129,7 +132,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyRedDotHooks() {
-        Method method = cacheManager.getMethod(HookTargets.KEY_RED_DOT_METHOD);
+        Method method = cachedTargets.method(HookTargets.KEY_RED_DOT_METHOD);
         if (method == null) {
             return;
         }
@@ -146,7 +149,7 @@ public class UIHooks extends BaseHook {
 
     @SuppressWarnings("unchecked")
     public void applyRemoveMyPageExtraCardHooks() {
-        final Class<?> featureListLoadClass = cacheManager.getClass(HookTargets.KEY_FEATURE_LIST_LOAD_CLASS);
+        final Class<?> featureListLoadClass = cachedTargets.type(HookTargets.KEY_FEATURE_LIST_LOAD_CLASS);
         if (featureListLoadClass == null) {
             XposedBridge.log("FQHook+RemoveCard: 未找到功能列表加载类，跳过Hook");
             return;
@@ -222,7 +225,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyRemoveRankHooks() {
-        Method method = cacheManager.getMethod(HookTargets.KEY_REMOVE_RANK_METHOD);
+        Method method = cachedTargets.method(HookTargets.KEY_REMOVE_RANK_METHOD);
         if (method != null) {
             XposedBridge.hookMethod(method, XC_MethodReplacement.returnConstant(null));
         }
@@ -236,7 +239,7 @@ public class UIHooks extends BaseHook {
                 "com.dragon.read.component.biz.impl.holder.SearchBookRobotEntranceHolder$SearchBookRobotEntranceModel"
         ));
 
-        Method method = cacheManager.getMethod(HookTargets.KEY_SEARCH_BAR_METHOD);
+        Method method = cachedTargets.method(HookTargets.KEY_SEARCH_BAR_METHOD);
         if (method == null) {
             return;
         }
@@ -292,7 +295,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applySlidingTabHooks() {
-        Method method = cacheManager.getMethod(HookTargets.KEY_TOP_TAP_METHOD);
+        Method method = cachedTargets.method(HookTargets.KEY_TOP_TAP_METHOD);
         if (method == null) {
             return;
         }
@@ -313,7 +316,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyTabHooks() {
-        Method method = cacheManager.getMethod(HookTargets.KEY_TAB_METHOD);
+        Method method = cachedTargets.method(HookTargets.KEY_TAB_METHOD);
         if (method == null) {
             return;
         }

@@ -5,7 +5,7 @@ import android.content.Intent;
 import android.net.Uri;
 
 import com.fuck.fanqie.HookTargets;
-import com.fuck.fanqie.MethodCacheManager;
+import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Method;
 
@@ -15,8 +15,11 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class FeatureHooks extends BaseHook {
-    public FeatureHooks(MethodCacheManager cacheManager, ClassLoader hostClassLoader) {
-        super(cacheManager, hostClassLoader);
+    private final CachedTargets cachedTargets;
+
+    public FeatureHooks(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
+        super(hostClassLoader);
+        this.cachedTargets = cachedTargets;
     }
 
     @Override
@@ -31,7 +34,7 @@ public class FeatureHooks extends BaseHook {
 
     public void applyAbtestHooks() {
         try {
-            Method method = cacheManager.getMethod(HookTargets.KEY_ABTEST_METHOD);
+            Method method = cachedTargets.method(HookTargets.KEY_ABTEST_METHOD);
             if (method == null) {
                 return;
             }
@@ -49,7 +52,7 @@ public class FeatureHooks extends BaseHook {
 
     public void applySplashK1Hook() {
         try {
-            Method method = cacheManager.getMethod(HookTargets.KEY_SPLASH_K1_METHOD);
+            Method method = cachedTargets.method(HookTargets.KEY_SPLASH_K1_METHOD);
             if (method == null) {
                 XposedBridge.log("FQHook+applySplashK1Hook: 未找到启动页跳转方法(K1)，跳过Hook");
                 return;
@@ -120,7 +123,7 @@ public class FeatureHooks extends BaseHook {
     }
 
     public void applyUpdateHooks() {
-        Method updateMethod = cacheManager.getMethod(HookTargets.KEY_UPDATE_METHOD);
+        Method updateMethod = cachedTargets.method(HookTargets.KEY_UPDATE_METHOD);
         if (updateMethod == null) {
             XposedBridge.log("FQHook+HookApplier: 未找到更新消息处理方法(B0)，跳过Hook");
         } else {
@@ -128,7 +131,7 @@ public class FeatureHooks extends BaseHook {
             XposedBridge.log("FQHook+HookApplier: 已应用更新消息拦截Hook(B0)");
         }
 
-        Method checkUpdateMethod = cacheManager.getMethod(HookTargets.KEY_CHECK_UPDATE_METHOD);
+        Method checkUpdateMethod = cachedTargets.method(HookTargets.KEY_CHECK_UPDATE_METHOD);
         if (checkUpdateMethod == null) {
             XposedBridge.log("FQHook+HookApplier: 未找到检查更新方法(H0)，跳过Hook");
         } else {
@@ -163,7 +166,7 @@ public class FeatureHooks extends BaseHook {
         }
 
         try {
-            Method authorSayMethod = cacheManager.getMethod(HookTargets.KEY_AUTHOR_SAY_METHOD);
+            Method authorSayMethod = cachedTargets.method(HookTargets.KEY_AUTHOR_SAY_METHOD);
             if (authorSayMethod != null) {
                 XposedBridge.hookMethod(authorSayMethod, XC_MethodReplacement.returnConstant(null));
                 XposedBridge.log("FQHook+ChapterControl: 已禁用作者说");
@@ -173,7 +176,7 @@ public class FeatureHooks extends BaseHook {
         }
 
         try {
-            Method coverHotCommentMethod = cacheManager.getMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD);
+            Method coverHotCommentMethod = cachedTargets.method(HookTargets.KEY_COVER_HOT_COMMENT_METHOD);
             if (coverHotCommentMethod == null) {
                 XposedBridge.log("FQHook+ChapterControl: 未找到封面热门评论方法，跳过Hook");
             } else {
@@ -213,7 +216,7 @@ public class FeatureHooks extends BaseHook {
         }
 
         try {
-            Method chapterEndHotCommentMethod = cacheManager.getMethod(HookTargets.KEY_CHAPTER_END_HOT_COMMENT_METHOD);
+            Method chapterEndHotCommentMethod = cachedTargets.method(HookTargets.KEY_CHAPTER_END_HOT_COMMENT_METHOD);
             if (chapterEndHotCommentMethod != null) {
                 XposedBridge.hookMethod(chapterEndHotCommentMethod, XC_MethodReplacement.returnConstant(Boolean.FALSE));
                 XposedBridge.log("FQHook+ChapterControl: 已禁用章末热评");
@@ -223,7 +226,7 @@ public class FeatureHooks extends BaseHook {
         }
 
         try {
-            Method chapterEndControlMethod = cacheManager.getMethod(HookTargets.KEY_CHAPTER_END_CONTROL_METHOD);
+            Method chapterEndControlMethod = cachedTargets.method(HookTargets.KEY_CHAPTER_END_CONTROL_METHOD);
             if (chapterEndControlMethod == null) {
                 XposedBridge.log("FQHook+ChapterControl: 未找到章末控件方法，跳过Hook");
             } else {

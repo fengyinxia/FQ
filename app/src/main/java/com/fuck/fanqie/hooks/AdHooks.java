@@ -3,7 +3,7 @@ package com.fuck.fanqie.hooks;
 import android.view.View;
 
 import com.fuck.fanqie.HookTargets;
-import com.fuck.fanqie.MethodCacheManager;
+import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -15,8 +15,11 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class AdHooks extends BaseHook {
-    public AdHooks(MethodCacheManager cacheManager, ClassLoader hostClassLoader) {
-        super(cacheManager, hostClassLoader);
+    private final CachedTargets cachedTargets;
+
+    public AdHooks(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
+        super(hostClassLoader);
+        this.cachedTargets = cachedTargets;
     }
 
     @Override
@@ -30,7 +33,7 @@ public class AdHooks extends BaseHook {
 
     public void applyAdHooks() {
         try {
-            Method adConfigMethod = cacheManager.getMethod(HookTargets.KEY_AD_CONFIG_METHOD);
+            Method adConfigMethod = cachedTargets.method(HookTargets.KEY_AD_CONFIG_METHOD);
             if (adConfigMethod != null) {
                 XposedBridge.hookMethod(adConfigMethod, new XC_MethodHook() {
                     @Override
@@ -48,7 +51,7 @@ public class AdHooks extends BaseHook {
         }
 
         try {
-            Method adFreeMethod = cacheManager.getMethod(HookTargets.KEY_AD_FREE_METHOD);
+            Method adFreeMethod = cachedTargets.method(HookTargets.KEY_AD_FREE_METHOD);
             if (adFreeMethod != null) {
                 XposedBridge.hookMethod(adFreeMethod, XC_MethodReplacement.returnConstant(Boolean.TRUE));
                 XposedBridge.log("FQHook+Ad: 已启用广告免除(Method)");
@@ -58,7 +61,7 @@ public class AdHooks extends BaseHook {
         }
 
         try {
-            Class<?> adFreeClass = cacheManager.getClass(HookTargets.KEY_AD_FREE_CLASS);
+            Class<?> adFreeClass = cachedTargets.type(HookTargets.KEY_AD_FREE_CLASS);
             if (adFreeClass == null) {
                 XposedBridge.log("FQHook+Ad: 未找到广告免除类 (KEY_AD_FREE_CLASS)，跳过相关Hook");
             } else {
@@ -100,7 +103,7 @@ public class AdHooks extends BaseHook {
     }
 
     public void applyLuckyDogHooks() {
-        Method luckyDogMethod = cacheManager.getMethod(HookTargets.KEY_LUCKY_DOG_METHOD);
+        Method luckyDogMethod = cachedTargets.method(HookTargets.KEY_LUCKY_DOG_METHOD);
         if (luckyDogMethod != null) {
             XposedBridge.hookMethod(luckyDogMethod, XC_MethodReplacement.returnConstant(Boolean.FALSE));
             XposedBridge.log("FQHook+applyHooks: 已禁用LuckyDog福利");
@@ -109,7 +112,7 @@ public class AdHooks extends BaseHook {
 
     public void applyHideBannerHooks() {
         try {
-            Method filterBannerMethod = cacheManager.getMethod(HookTargets.KEY_FILTER_BANNER_METHOD);
+            Method filterBannerMethod = cachedTargets.method(HookTargets.KEY_FILTER_BANNER_METHOD);
             if (filterBannerMethod == null) {
                 XposedBridge.log("FQHook+Banner: 未找到 Banner 相关方法");
                 return;
@@ -139,7 +142,7 @@ public class AdHooks extends BaseHook {
     }
 
     public void applyFloatingViewHooks() {
-        Method popMethod = cacheManager.getMethod(HookTargets.KEY_POP_METHOD);
+        Method popMethod = cachedTargets.method(HookTargets.KEY_POP_METHOD);
         if (popMethod != null) {
             XposedBridge.hookMethod(popMethod, XC_MethodReplacement.returnConstant(Boolean.TRUE));
         }
