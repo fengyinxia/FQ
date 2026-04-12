@@ -8,6 +8,7 @@ import com.fuck.fanqie.cache.CachedTargets;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
@@ -27,6 +28,7 @@ public class AdHooks extends BaseHook {
         applyAdHooks();
         applyLuckyDogHooks();
         applyHideBannerHooks();
+        applyHideBookshelfRelateVideoBannerHooks();
         applyFloatingViewHooks();
         applyClickAgentHooks();
     }
@@ -138,6 +140,93 @@ public class AdHooks extends BaseHook {
             XposedBridge.log("FQHook+Banner: 成功应用 Banner 隐藏钩子");
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+Banner: 应用 Banner 隐藏钩子失败: ", throwable);
+        }
+    }
+
+    public void applyHideBookshelfRelateVideoBannerHooks() {
+        try {
+            Method bannerResponseMethod = cachedTargets.method(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD);
+            if (bannerResponseMethod == null) {
+                XposedBridge.log("FQHook+BookshelfBanner: 未找到书架 Banner 响应方法");
+                return;
+            }
+            XposedBridge.hookMethod(bannerResponseMethod, new XC_MethodHook() {
+                private volatile Field cachedDataField;
+                private volatile Field cachedBannerDataField;
+                private volatile Field cachedBannerTypeField;
+
+                @Override
+                @SuppressWarnings("unchecked")
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    Object response = param.args[0];
+                    Object data = readField(response, "data", true);
+                    if (data == null) {
+                        return;
+                    }
+                    Object bannerData = readField(data, "bannerData", false);
+                    if (!(bannerData instanceof List<?>)) {
+                        return;
+                    }
+                    List<Object> original = (List<Object>) bannerData;
+                    if (original.isEmpty()) {
+                        return;
+                    }
+
+                    ArrayList<Object> filtered = new ArrayList<>(original.size());
+                    int removedCount = 0;
+                    for (Object item : original) {
+                        if (isRelateVideoBanner(item)) {
+                            removedCount++;
+                            continue;
+                        }
+                        filtered.add(item);
+                    }
+                    if (removedCount == 0) {
+                        return;
+                    }
+                    cachedBannerDataField.set(data, filtered);
+                    XposedBridge.log("FQHook+BookshelfBanner: 已过滤书架短剧 Banner " + removedCount + " 条");
+                }
+
+                private Object readField(Object target, String fieldName, boolean isResponseField) throws Throwable {
+                    if (target == null) {
+                        return null;
+                    }
+                    Field field = resolveField(target.getClass(), fieldName, isResponseField);
+                    return field.get(target);
+                }
+
+                private Field resolveField(Class<?> type, String fieldName, boolean isResponseField) throws Throwable {
+                    Field field = isResponseField ? cachedDataField : cachedBannerDataField;
+                    if (field == null) {
+                        field = type.getDeclaredField(fieldName);
+                        field.setAccessible(true);
+                        if (isResponseField) {
+                            cachedDataField = field;
+                        } else {
+                            cachedBannerDataField = field;
+                        }
+                    }
+                    return field;
+                }
+
+                private boolean isRelateVideoBanner(Object item) throws Throwable {
+                    if (item == null) {
+                        return false;
+                    }
+                    Field bannerTypeField = cachedBannerTypeField;
+                    if (bannerTypeField == null) {
+                        bannerTypeField = item.getClass().getDeclaredField("bannerType");
+                        bannerTypeField.setAccessible(true);
+                        cachedBannerTypeField = bannerTypeField;
+                    }
+                    Object bannerType = bannerTypeField.get(item);
+                    return bannerType instanceof Enum<?> && "RelateVideo".equals(((Enum<?>) bannerType).name());
+                }
+            });
+            XposedBridge.log("FQHook+BookshelfBanner: 成功应用书架短剧 Banner 过滤钩子");
+        } catch (Throwable throwable) {
+            HookUtils.logError("FQHook+BookshelfBanner: 应用书架短剧 Banner 过滤钩子失败: ", throwable);
         }
     }
 

@@ -1,5 +1,8 @@
 package com.fuck.fanqie.hooks.download;
 
+import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.cache.CachedTargets;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -8,9 +11,11 @@ import java.util.Map;
 import de.robv.android.xposed.XposedHelpers;
 
 public final class DownloadContentProcessor {
+    private final CachedTargets cachedTargets;
     private final ClassLoader hostClassLoader;
 
-    public DownloadContentProcessor(ClassLoader hostClassLoader) {
+    public DownloadContentProcessor(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
+        this.cachedTargets = cachedTargets;
         this.hostClassLoader = hostClassLoader;
     }
 
@@ -19,7 +24,10 @@ public final class DownloadContentProcessor {
             return null;
         }
         try {
-            Class<?> serviceClass = XposedHelpers.findClass("zo4.b0", hostClassLoader);
+            Class<?> serviceClass = cachedTargets.type(HookTargets.KEY_READER_DIRECTORY_PRELOAD_CLASS);
+            if (serviceClass == null) {
+                return null;
+            }
             Object service = XposedHelpers.callStaticMethod(serviceClass, "j");
             if (service == null) {
                 return null;

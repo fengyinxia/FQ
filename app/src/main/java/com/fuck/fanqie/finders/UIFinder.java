@@ -18,15 +18,32 @@ public class UIFinder extends BaseFinder {
 
     @Override
     public void find(DexKitBridge bridge) {
+        findBookshelfBannerResponseMethod(bridge);
         findRedDotMethod(bridge);
         findFeatureListLoadMethod(bridge);
         findVipRelatedTargets(bridge);
         findSearchBarMethod(bridge);
         findFilterHomeMethod(bridge);
         findTabMethod(bridge);
+        findTabRouteHelperClass(bridge);
         findDynamicMethod(bridge);
         findBookNameClickMethod(bridge);
         findMyPageSearchBarMethod(bridge);
+    }
+
+    private void findBookshelfBannerResponseMethod(DexKitBridge bridge) {
+        try {
+            MethodData methodData = first(bridge.findMethod(
+                    FindMethod.create().matcher(
+                            MethodMatcher.create()
+                                    .usingStrings(new String[]{"request banner data success size:"})
+                                    .paramTypes(new String[]{"com.dragon.read.rpc.model.GetBookShelfBannerResponse"})
+                    )
+            ));
+            cacheMethod(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD, methodData);
+        } catch (Throwable throwable) {
+            log("查找书架 Banner 响应方法失败", throwable);
+        }
     }
 
     private void findBookNameClickMethod(DexKitBridge bridge) {
@@ -191,6 +208,19 @@ public class UIFinder extends BaseFinder {
             cacheMethod(HookTargets.KEY_TOP_TAP_METHOD, topTabMethod);
         } catch (Throwable throwable) {
             log("查找顶部 tab 方法失败", throwable);
+        }
+    }
+
+    private void findTabRouteHelperClass(DexKitBridge bridge) {
+        try {
+            ClassData classData = first(bridge.findClass(
+                    FindClass.create().matcher(
+                            ClassMatcher.create().usingStrings(new String[]{"TabRouteExperimentHelper"})
+                    )
+            ));
+            cacheClass(HookTargets.KEY_TAB_ROUTE_HELPER_CLASS, classData);
+        } catch (Throwable throwable) {
+            log("查找底栏路由实验帮助类失败", throwable);
         }
     }
 

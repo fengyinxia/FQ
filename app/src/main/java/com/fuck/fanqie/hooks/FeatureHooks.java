@@ -72,10 +72,10 @@ public class FeatureHooks extends BaseHook {
                             && "main".equals(data.getHost())
                             && (tabName == null || "seriesmall".equals(tabName))) {
                         intent.setClassName("com.dragon.read", "com.dragon.read.pages.main.MainFragmentActivity");
-                        intent.setData(Uri.parse("dragon1967://main?tabName=bookmall"));
-                        intent.putExtra("tabName", "bookmall");
-                        intent.putExtra("page_schema", "dragon1967://main?tabName=bookmall");
-                        XposedBridge.log("FQHook+K1: 已修改为跳转书城 tab");
+                        intent.setData(Uri.parse("dragon1967://main?tabName=bookshelf"));
+                        intent.putExtra("tabName", "bookshelf");
+                        intent.putExtra("page_schema", "dragon1967://main?tabName=bookshelf");
+                        XposedBridge.log("FQHook+K1: 已修改为跳转书架 tab");
                     }
                 }
             });

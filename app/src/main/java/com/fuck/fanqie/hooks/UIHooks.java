@@ -21,12 +21,17 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class UIHooks extends BaseHook {
-    private static final int MY_PAGE_DYNAMIC_SEARCH_VIEW_ID = 2131829453;
+    private static final Set<String> ALLOWED_RECOMMEND_GROUP_TYPES = new HashSet<>(Arrays.asList(
+            "Book",
+            "RankListBook"
+    ));
     private final CachedTargets cachedTargets;
+    private final RecommendFilterHelper recommendFilterHelper;
 
     public UIHooks(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
         super(hostClassLoader);
         this.cachedTargets = cachedTargets;
+        this.recommendFilterHelper = new RecommendFilterHelper(hostClassLoader);
     }
 
     @Override
@@ -40,8 +45,7 @@ public class UIHooks extends BaseHook {
         applyCustomVipHooks();
         applySearchWordHooks();
         applySearchBarHooks();
-        applyTabHooks();
-        applyRemoveRankHooks();
+        applyRecommendFlowHooks();
     }
 
     private void applyDisableMyPageSidebarHooks() {
@@ -145,54 +149,20 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyMyPageSearchHooks() {
-        Method dynamicSearchMethod = cachedTargets.method(HookTargets.KEY_MY_PAGE_SEARCH_BAR_METHOD);
-        if (dynamicSearchMethod != null) {
-            XposedBridge.hookMethod(dynamicSearchMethod, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    try {
-                        hideMyPageDynamicSearch(param.thisObject);
-                    } catch (Throwable throwable) {
-                        HookUtils.logError("FQHook+MyPageSearch: 隐藏动态搜索入口失败: ", throwable);
-                    }
-                }
-            });
-            XposedBridge.log("FQHook+MyPageSearch: 已隐藏我的页面搜索入口");
-        }
+        disableMyPageDynamicSearch();
     }
 
-    private void hideMyPageDynamicSearch(Object target) throws IllegalAccessException {
-        View searchView = findViewById(target, MY_PAGE_DYNAMIC_SEARCH_VIEW_ID);
-        if (searchView == null) {
+    private void disableMyPageDynamicSearch() {
+        Method method = cachedTargets.method(HookTargets.KEY_MY_PAGE_SEARCH_BAR_METHOD);
+        if (method == null) {
             return;
         }
-        searchView.setVisibility(View.INVISIBLE);
-        searchView.setEnabled(false);
-        searchView.setClickable(false);
-    }
-
-    private View findViewById(Object target, int viewId) throws IllegalAccessException {
-        for (Class<?> clazz = target.getClass(); clazz != null; clazz = clazz.getSuperclass()) {
-            for (Field field : clazz.getDeclaredFields()) {
-                if (!View.class.isAssignableFrom(field.getType())) {
-                    continue;
-                }
-                field.setAccessible(true);
-                Object value = field.get(target);
-                if (!(value instanceof View)) {
-                    continue;
-                }
-                View rootView = (View) value;
-                if (rootView.getId() == viewId) {
-                    return rootView;
-                }
-                View childView = rootView.findViewById(viewId);
-                if (childView != null) {
-                    return childView;
-                }
-            }
+        try {
+            XposedBridge.hookMethod(method, XC_MethodReplacement.DO_NOTHING);
+            XposedBridge.log("FQHook+MyPageSearch: 已禁用动态搜索入口构建");
+        } catch (Throwable throwable) {
+            HookUtils.logError("FQHook+MyPageSearch: 禁用动态搜索入口失败: ", throwable);
         }
-        return null;
     }
 
     public void applyRedDotHooks() {
@@ -295,6 +265,28 @@ public class UIHooks extends BaseHook {
         }
     }
 
+    public void applyRecommendFlowHooks() {
+        Method method = cachedTargets.method(HookTargets.KEY_FILTER_DATA_METHOD);
+        if (method == null) {
+            XposedBridge.log("FQHook+RecommendFlow: 未找到推荐流过滤方法");
+            return;
+        }
+
+        XposedBridge.hookMethod(method, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                Object cellViewData = param.args.length > 0 ? param.args[0] : null;
+                String reason = recommendFilterHelper.getFilterReason(cellViewData, ALLOWED_RECOMMEND_GROUP_TYPES);
+                if (reason == null) {
+                    return;
+                }
+                param.setResult(new ArrayList<>());
+                XposedBridge.log("FQHook+RecommendFlow: 已过滤推荐流卡片 " + reason);
+            }
+        });
+        XposedBridge.log("FQHook+RecommendFlow: 保留 Book / RankListBook，并额外过滤听书样式卡片");
+    }
+
     @SuppressWarnings("unchecked")
     public void applySearchBarHooks() {
         final Set<String> filteredClassNames = new HashSet<>(Arrays.asList(
@@ -379,28 +371,4 @@ public class UIHooks extends BaseHook {
         }
     }
 
-    public void applyTabHooks() {
-        Method method = cachedTargets.method(HookTargets.KEY_TAB_METHOD);
-        if (method == null) {
-            return;
-        }
-
-        XposedBridge.hookMethod(method, new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                Object target = param.thisObject;
-                Field field = target.getClass().getDeclaredField("s");
-                field.setAccessible(true);
-                Object tabContainer = field.get(target);
-                if (tabContainer == null) {
-                    return;
-                }
-
-                View tabView = (View) tabContainer.getClass().getMethod("getView").invoke(tabContainer);
-                if (tabView != null) {
-                    tabView.setVisibility(View.GONE);
-                }
-            }
-        });
-    }
 }

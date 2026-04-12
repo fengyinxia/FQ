@@ -3,6 +3,8 @@ package com.fuck.fanqie.hooks.download;
 import android.app.Application;
 import android.util.Log;
 
+import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.cache.CachedTargets;
 import com.fuck.fanqie.hooks.BaseHook;
 import com.fuck.fanqie.hooks.HookUtils;
 
@@ -15,6 +17,7 @@ import de.robv.android.xposed.XposedHelpers;
 public class DownloadHooks extends BaseHook {
     private static final String TAG = "FQHook";
 
+    private final CachedTargets cachedTargets;
     private final DownloadCaptureState captureState = new DownloadCaptureState();
     private final DownloadContentProcessor contentProcessor;
     private final DownloadExporter exporter;
@@ -25,9 +28,10 @@ public class DownloadHooks extends BaseHook {
         }
     };
 
-    public DownloadHooks(ClassLoader hostClassLoader) {
+    public DownloadHooks(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
         super(hostClassLoader);
-        this.contentProcessor = new DownloadContentProcessor(hostClassLoader);
+        this.cachedTargets = cachedTargets;
+        this.contentProcessor = new DownloadContentProcessor(cachedTargets, hostClassLoader);
         this.exporter = new DownloadExporter();
     }
 
@@ -141,15 +145,12 @@ public class DownloadHooks extends BaseHook {
 
     private void applyStatusDispatcherHook() {
         try {
-            Class<?> dispatcherClass = XposedHelpers.findClass(
-                    "com.dragon.read.pages.download.a",
-                    hostClassLoader
-            );
-            Class<?> statusClass = XposedHelpers.findClass(
-                    "com.dragon.read.pages.download.IDownloadTask$Status",
-                    hostClassLoader
-            );
-            XposedHelpers.findAndHookMethod(dispatcherClass, "b", String.class, statusClass, new XC_MethodHook() {
+            Method dispatcherMethod = cachedTargets.method(HookTargets.KEY_DOWNLOAD_STATUS_DISPATCHER_METHOD);
+            if (dispatcherMethod == null) {
+                logInfo("DownloadHooks: 未找到下载状态分发方法，跳过 Hook");
+                return;
+            }
+            XposedBridge.hookMethod(dispatcherMethod, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
                     String taskKey = param.args[0] instanceof String ? (String) param.args[0] : null;
