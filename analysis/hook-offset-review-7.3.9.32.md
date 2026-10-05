@@ -237,3 +237,34 @@
 4. 修复 Java/Finder/Hook 后按项目要求执行 `./gradlew.bat assembleDebug`，再实机核对“我的”页、章末、底栏和单书下载导出。
 
 以上原始静态表只代表修复前基线；本轮已构建并进行上述限定范围的真机测试，但未验证的 Hook 和最终 XHTML→TXT 转换仍不能当作通过。
+
+## 后续变更汇总（2026-10-05）
+
+仓库分析目录只保留本文与 `project-handoff.md`；其他专项资料保留在本地、不随 GitHub 分发。本节汇总后续实现及验收边界，前面的修复前表格/旧快照仅为历史。
+
+### 分类底栏
+
+- 恢复原生 BookCategory，底栏目标顺序为书架/书城/分类/我的，继续隐藏短剧；不伪造短剧 Tab，不手工 addView。
+- 新增分类门禁与 MainFragmentActivity.onCreate 方法 key。分类门禁通过 Resources.getBoolean 调用及 KmpCategoryFragment 工厂所在类定位并返回 false；Activity 初始化前、底栏构建前和路由配置更新后归一化类型列表。
+- 借助宿主 hasCategoryTab 分支隐藏搜索旁入口并调整搜索空间。已构建安装，分类页面/顶部入口/刷新行为仍由用户验收。
+
+### 方法级 DexKit 迁移与运行日志
+
+- 新增五个独立方法 key：封面文字渲染、封面图片渲染、章节解码核心、快捷转换、快捷聚合。Finder 只写扫描结果；Hook 从 CachedTargets 取 Method，检查契约后注册。
+- 文字方法按 BookCoverInfo 单参/void、bookName/bookShortName 字段读取及 TextView.setText 定位；图片方法按同类、BookCoverInfo+boolean/void、bookNameUrl 及文字方法调用定位。
+- 解码核心按五参 String/DecryptKey/boolean/String/String→String、解压日志、UTF_8 及字节解码调用定位。不写死 x.a；旧 o.b 可能顺带匹配，但不维护旧版完整导出链。
+- 快捷转换按 FunctionItemConverter 类特征、四参/List、FragmentActivity/Function1 定位；聚合按转换调用、前三参类型、CardType.COMMON 和 addAll 定位。不再写死 sd4.h/q1$a/b，移除旧 CardData/List 构造器回退。
+- 7.3.9.32 全 DEX 静态五项唯一；重启后 PID 21843 日志证实 5/5 实际扫描、写入快照并挂载。封面两次回退文字，快捷源列表 4→2、聚合列表 7→3。
+- 同一进程记录缓存补回 13 章并导出 TXT；没有读取正文，不能断言内容完整。解码回调没有独立触发日志，不能由缓存补回推定直接捕获路径已经单独验收。
+- 当时快照 39/42，缺少书名点击、旧 Banner、排行榜三个目标。之后按用户要求删除旧书城 pictureData Banner 清空与未接入的排行榜 Hook，包括扫描、key 和函数；协议 42→40。书架短剧 Banner 和推荐流 RankListBook 策略保留。书名点击未修复。
+- 保留风险：部分稳定 SDK/Reader/PopProxy/侧栏/热词构造器/ChapterInfo.a 等仍非方法级 DexKit；快捷 DTO 的 a/b 字段与 de4 模型白名单仍依赖新版形态。弹窗补充 a() 是 V597 首页延迟实验，不等于全局禁用；成功日志不能替代行为验证。
+
+### 下载模式选择
+
+- 新增 `method_download_click`，协议 40→41。按“点击下载权限判断: decision=”及实例九参/void 契约唯一定位公共下载入口；三个直接调用点为 KMP 详情、原生详情、阅读器。
+- 主线程弹出“缓存 / 缓存并导出”，选择后通过 XposedBridge.invokeOriginalMethod 恢复同一接收者和全部原参数。保留宿主权限判断及回调，不伪造权益、不替换下载器；取消不启动原下载，并调用宿主取消回调。
+- DownloadExportModes 使用独立 SharedPreferences `fq_download_export_requests`，仅保存按 bookId 的请求 ID，不存正文，不混入目标缓存或宿主下载设置。缓存删除该书导出意图，不捕获/补回/写 TXT，也不删除已存在的 TXT。
+- 缓存并导出才允许激活捕获，在 FINISH 后执行现有补回、XHTML→纯文本和 TXT 写入；暂停/错误保留意图，取消/成功写入后清除。持久化支持进程重启恢复，多书分别记录。
+- 请求 ID 与线程 claim 避免重复导出/旧任务覆盖新模式；最终写入及清理核对当前请求，与模式切换串行。入口缺失时默认仅缓存，不自动导出。
+- 新入口静态唯一与三个调用点已核对；最新 assembleDebug --offline 成功（2s），无线覆盖安装 Success。弹窗、取消、两种模式、多书并行和暂停/重启恢复仍待用户验收，未代操作页面、未读取正文。
+- 已缓存书再次选择导出是否产生 FINISH 由宿主原流程决定；不绕过原流程直接导出。后台已有任务恢复不自动弹窗。

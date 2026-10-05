@@ -59,10 +59,10 @@
 
 ## 已知状态
 
-- 非 DexKit 盘点及迁移：见 `analysis/non-dexkit-hook-review-7.3.9.32.md`。2026-10-05 已将封面文字/图片渲染、章节解码核心、快捷入口转换/聚合迁移为 5 个独立方法级 DexKit key；Hook 只读 CachedTargets，且检查签名。不再写死这几处的 a.g/h、x.a、sd4.h.b、q1$a.b；移除相关旧列表构造器和扫描回退分支，仅维护新版。保留 class_feature_list_load 的原类 key 含义，新增方法 key 不复用旧 key。官网 7.3.9.32 全 23 DEX 的等价静态特征扫描中，5 个目标各只有一个候选；assembleDebug --offline 及无线覆盖安装均成功；重启后 PID 21843（16:13—16:14）日志确认新增 5/5 方法实际扫描、写入快照并挂载，封面两次回退文字，快捷源列表 4→2/聚合 7→3，下载从缓存补回 13 章后记录 TXT 导出完成。未读正文；解码直接捕获回调没有独立日志，不能由缓存导出推定其单独触发。新快照 39/42，缺少已有书名点击/Banner过滤/排行榜目标，本轮未修复；该进程日志未见异常。未迁移 Framework SDK、Reader、PopProxy、侧栏配置、热词构造器、ChapterInfo.a、广告额外成员及 EPUB P1。快捷过滤的 a/b 字段和 de4 模型白名单仍为新版依赖；内容处理器仍直接调用新版 ChapterOriginalContentHelper.i/c，不维护旧版导出链。弹窗 a() 的首页延迟实验语义、无条件成功日志和侧栏后续配置覆盖风险仍保留，详见专项审计。
-- 分类入口迁移：见 `analysis/category-bottom-tab-review-7.3.9.32.md`。现已在 BottomTabHooks 中恢复原生 BookCategory，顺序书架/书城/分类/我的，继续隐藏短剧。新增 `KEY_CATEGORY_TAB_DISABLED_METHOD` 唯一定位分类资源门禁并返回 false；新增 `KEY_MAIN_ACTIVITY_ON_CREATE_METHOD`，在 Application 初始化后的主界面 onCreate 前归一化路由列表，避免 attach 时强行初始化路由类。底栏构建前及 BookStoreAlignmentData 刷新后重复归一化，补分类且去重；沿宿主 hasCategoryTab 分支隐藏搜索旁分类入口并调整搜索布局，不手工移动控件。安装与实际页面验收边界见专项记录。
-- 原书名统一展示可行性：见 `analysis/original-book-name-review-7.3.9.32.md`。主 RPC/PB/KMP ApiBookInfo 存在 rawBookName（PB 为 raw_book_name）候选，originalBookName 另被原著/改编关联消费者使用，不可盲目混用。书城共享 j4.f 目前只复制展示名；阅读器使用独立 SaaS ApiBookInfo，缺少 rawBookName，故不能改一处即保证全部 UI。方案需先核对一部实验书的元数据，只按同 bookId 的可靠原名替换，缺值保留，不全局改 TextView 或章节标题。本轮尚未实现或运行验证。
-- AB 云控清单：`analysis/common-ab-controls-review-7.3.9.32.md` 已核对 `CommonAbResultData` 的 74 个业务字段、28 个顶层布尔标记，以及更新入口直接读取的 45 个字段。当前 `applyAbtestHooks()` 仅跳过更新/缓存写入/通知，旧配置仍能在静态初始化时从本地恢复，不等于关闭所有开关；独立 SsConfigMgr 配置仍可生效。`dynamicComicTip` 仅是引导文案/版本，漫剧活跃度是用户参数，不是推荐总开关。
+- 非 DexKit 盘点及迁移：最新记录见 `analysis/hook-offset-review-7.3.9.32.md` 的“后续变更汇总”。2026-10-05 已将封面文字/图片渲染、章节解码核心、快捷入口转换/聚合迁移为 5 个独立方法级 DexKit key；Hook 只读 CachedTargets，且检查签名。不再写死这几处的 a.g/h、x.a、sd4.h.b、q1$a.b；移除相关旧列表构造器和扫描回退分支，仅维护新版。保留 class_feature_list_load 的原类 key 含义，新增方法 key 不复用旧 key。官网 7.3.9.32 全 23 DEX 的等价静态特征扫描中，5 个目标各只有一个候选；assembleDebug --offline 及无线覆盖安装均成功；重启后 PID 21843（16:13—16:14）日志确认新增 5/5 方法实际扫描、写入快照并挂载，封面两次回退文字，快捷源列表 4→2/聚合 7→3，下载从缓存补回 13 章后记录 TXT 导出完成。未读正文；解码直接捕获回调没有独立日志，不能由缓存导出推定其单独触发。新快照 39/42，缺少已有书名点击/Banner过滤/排行榜目标，本轮未修复；该进程日志未见异常。未迁移 Framework SDK、Reader、PopProxy、侧栏配置、热词构造器、ChapterInfo.a、广告额外成员及 EPUB P1。快捷过滤的 a/b 字段和 de4 模型白名单仍为新版依赖；内容处理器仍直接调用新版 ChapterOriginalContentHelper.i/c，不维护旧版导出链。弹窗 a() 的首页延迟实验语义、无条件成功日志和侧栏后续配置覆盖风险仍保留，风险与验收边界见保留的 Hook 修复记录。
+- 分类入口迁移：定位与边界见 `analysis/hook-offset-review-7.3.9.32.md` 的“后续变更汇总”。现已在 BottomTabHooks 中恢复原生 BookCategory，顺序书架/书城/分类/我的，继续隐藏短剧。新增 `KEY_CATEGORY_TAB_DISABLED_METHOD` 唯一定位分类资源门禁并返回 false；新增 `KEY_MAIN_ACTIVITY_ON_CREATE_METHOD`，在 Application 初始化后的主界面 onCreate 前归一化路由列表，避免 attach 时强行初始化路由类。底栏构建前及 BookStoreAlignmentData 刷新后重复归一化，补分类且去重；沿宿主 hasCategoryTab 分支隐藏搜索旁分类入口并调整搜索布局，不手工移动控件。安装与实际页面验收边界见专项记录。
+- 原书名统一展示可行性（未实现，研究已暂停）：主 RPC/PB/KMP ApiBookInfo 存在 rawBookName（PB 为 raw_book_name）候选，originalBookName 另被原著/改编关联消费者使用，不可盲目混用。书城共享 j4.f 目前只复制展示名；阅读器使用独立 SaaS ApiBookInfo，缺少 rawBookName，故不能改一处即保证全部 UI。方案需先核对一部实验书的元数据，只按同 bookId 的可靠原名替换，缺值保留，不全局改 TextView 或章节标题。本轮尚未实现或运行验证。
+- AB 云控清单（研究已暂停）：已核对 `CommonAbResultData` 的 74 个业务字段、28 个顶层布尔标记，以及更新入口直接读取的 45 个字段。当前 `applyAbtestHooks()` 仅跳过更新/缓存写入/通知，旧配置仍能在静态初始化时从本地恢复，不等于关闭所有开关；独立 SsConfigMgr 配置仍可生效。`dynamicComicTip` 仅是引导文案/版本，漫剧活跃度是用户参数，不是推荐总开关。
 - 搜索框热词后续修复：原先仅在双参构造前清空 text，遗漏 prefixText/displayText/displayTextV2 和 JSON/KMP 路径。现新增 `SearchCueWordFilter`，统一清理推荐词的四个展示字段，保留 `isDefault=true` 的宿主通用提示，不触碰用户输入。`UIFinder` 唯一定位原生/KMP 搜索框静态 `List→List` 预处理入口，经新增 `KEY_SEARCH_CUE_LIST_METHOD` / `KEY_SEARCH_CUE_KMP_LIST_METHOD` 交给 `CachedTargets`，由 `UIHooks` 在接收词列表时清理，补回构造器绕过路径。列表长度和搜索框保留；类型/字段不兼容明确记录。构建安装及用户验收边界见专项审计，不将安装成功当作热词已消失。
 - 书城漫剧漏过滤排查：现有推荐 Hook 只拦截 `c1.Y(CellViewData,int,int)`，日志仍实际过滤 `VideoSeries`，不是整个 Hook 失效。白名单仅保留 Book/RankListBook，DynamicComic/RankListDynamicComic 在该入口应被拦截；但宿主另有 `M→r0/K0` 等转换链路，Book 子项也可能按 genreType 渲染漫画，而当前 helper 只额外检查听书。已确认覆盖缺口，尚未捕获用户所见漫剧卡片的实际类型和入口，不把所有漫画等同于漫剧。本轮未修改源码，详情及后续定位边界见专项审计。
 - 我的页金币/余额/提现区域：新增 `KEY_MY_PAGE_CONTENT_METHOD`（`method_my_page_content`），由 `UIFinder` 唯一定位 `FanqieMineFragmentV2.onCreateContent(LayoutInflater, ViewGroup, Bundle): View`，Hook 保留页面创建结果。仅在该内容树中校验 `id/feq` 含钱包行 `he1`（金币 `frc`、余额 `fr5`、提现 `gou`）及福利领取 `gos` 后，将整卡设为 `GONE`；侧栏菜单入口替换为设置入口：复用 `f0l` 原控件及布局参数，只换设置图标和原生点击回调，保持其 `VISIBLE`；备用 `f05` 保持 `INVISIBLE`。此前显示 `f05` 导致用户反馈与夜间按钮重叠，现不再显示它或移动夜间按钮。通过新增 `KEY_MY_PAGE_SETTINGS_CLICK_METHOD`（`method_my_page_settings_click`）唯一定位并实例化宿主原生设置监听器，点击执行 `openSetting`，不是仅换图标。原先把两按钮都隐藏属于需求误解，已纠正；定位失败明确记录并保留原菜单。布局监听处理异步创建和重新显示。原先仅隐藏 `he1` 会残留福利，本轮按用户要求改为整卡隐藏，不改变真实账户余额或提现 API。混淆资源名依据 7.3.9.32 既有真机 UI 树，其他版本未验证；本次页面效果待用户验收。当前 target 协议共 41 个 key（含热词列表、分类迁移、5 个方法级迁移及下载点击入口，已移除旧 Banner/排行榜两项）。
@@ -72,12 +72,12 @@
 - 模拟器（emulator-5554，Android 14，x86_64）上 LSPosed 2.1.1 无 32 位 x86 库，不能用于验证该宿主。模块现已同时打包 `arm64-v8a` 和 `armeabi-v7a` DexKit 库；7.3.9.32 已在 RMX2117 真机验证。
 - 2026-10-05 按用户要求彻底移除旧书城 Banner 与排行榜 Hook：删除 method_filter_banner/method_remove_rank、对应 Finder 扫描、AdHooks 的 pictureData 清空注册，以及未接入初始化的 applyRemoveRankHooks；协议 42→40。保留书架短剧 Banner 响应过滤、书城推荐流过滤（含 RankListBook 允许类型）、以及此前已验收的 5 个方法级迁移。之前的 39/42 快照为移除前历史记录；本轮未修复书名点击目标。源码残留引用检查为 0、assembleDebug --offline 及无线覆盖安装成功；用户重启后刷新快照，未代操作页面。
 - 7.3.9.32 的 `KEY_MY_PAGE_SEARCH_BAR_METHOD` 仍定位 `FanqieMineFragmentV2.onCreateContent(...)`；Hook 现保留整页创建返回值，按实机确认的 `com.dragon.read:id/g64` 将搜索 ComposeView 设为 `INVISIBLE`（保留占位），并在后续布局中重新隐藏。该混淆资源名仅在 7.3.9.32 实机验证；旧版独立入口方法保留原替换路径。
-- 阅读偏好与推荐流类型的对齐分析见 `analysis/read-preference-recommend-flow-review.md`，同步过滤方案已回滚。
-- 听书解密/导出运行时代码已删除；若后续重启，应从 `analysis/audio-decrypt-review.md` 重新设计，不要回滚旧代码。
+- 阅读偏好与推荐流类型同步过滤方案已回滚；对应历史研究仅在本地保留。
+- 听书解密/导出运行时代码已删除；若后续重启需重新设计，不要回滚旧代码。对应历史研究仅在本地保留。
 
 ## 下载导出
 
-- 下载方式选择实现见 `analysis/download-mode-review-7.3.9.32.md`：新增 method_download_click，按“点击下载权限判断”及九参契约唯一定位 n1.a，覆盖 KMP/原生详情及阅读器三个直接调用点。DownloadModeChooser 在主线程显示选择，XposedBridge.invokeOriginalMethod 恢复全部原参数，不改宿主权限结果。DownloadExportModes 使用独立 fq_download_export_requests 保存导出请求 ID；普通缓存不执行本模块捕获/补回/写 TXT，旧请求失效后不能写文件或清除新任务状态。协议 40→41；默认仅缓存，入口缺失不自动导出。全 DEX 入口唯一、三个调用点核对及 assembleDebug --offline 通过，无线覆盖安装 Success；弹窗显示/取消、两模式、多书与暂停恢复仍待用户重启实机验收。
+- 下载方式选择实现见 `analysis/hook-offset-review-7.3.9.32.md` 的“下载模式选择”：新增 method_download_click，按“点击下载权限判断”及九参契约唯一定位 n1.a，覆盖 KMP/原生详情及阅读器三个直接调用点。DownloadModeChooser 在主线程显示选择，XposedBridge.invokeOriginalMethod 恢复全部原参数，不改宿主权限结果。DownloadExportModes 使用独立 fq_download_export_requests 保存导出请求 ID；普通缓存不执行本模块捕获/补回/写 TXT，旧请求失效后不能写文件或清除新任务状态。协议 40→41；默认仅缓存，入口缺失不自动导出。全 DEX 入口唯一、三个调用点核对及 assembleDebug --offline 通过，无线覆盖安装 Success；弹窗显示/取消、两模式、多书与暂停恢复仍待用户重启实机验收。
 
 - 下载目标由 `DownloadFinder` 生产，`DownloadHooks` 消费。
 - 关键 key：`KEY_DOWNLOAD_STATUS_DISPATCHER_METHOD`、`KEY_READER_DIRECTORY_PRELOAD_CLASS`。
@@ -87,7 +87,7 @@
 ## unidbg 子项目
 
 - `unidbg/` 是独立中转项目，不属于主 Xposed 模块运行时。
-- 详细交接文档：`analysis/unidbg-handoff.md`。
+- unidbg 的额外历史交接资料仅在本地保留，未随仓库分发。
 - `project-handoff.md` 只维护主 Xposed 模块状态，`unidbg` 细节统一维护到独立文档。
 
 ## 最近验证

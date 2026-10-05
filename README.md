@@ -105,8 +105,6 @@ app/src/main/java/com/fuck/fanqie/
 
 - [项目交接](analysis/project-handoff.md)
 - [7.3.9.32 Hook 修复记录](analysis/hook-offset-review-7.3.9.32.md)
-- [方法级 DexKit 迁移与日志验收](analysis/non-dexkit-hook-review-7.3.9.32.md)
-- [下载模式实现与验证边界](analysis/download-mode-review-7.3.9.32.md)
 
 ## 免责声明
 
