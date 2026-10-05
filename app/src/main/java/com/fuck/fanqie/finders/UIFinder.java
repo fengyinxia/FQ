@@ -6,10 +6,15 @@ import com.fuck.fanqie.cache.TargetScanResult;
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.enums.UsingType;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassData;
 import org.luckypray.dexkit.result.MethodData;
+
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UIFinder extends BaseFinder {
     public UIFinder(TargetScanResult scanResult) {
@@ -20,7 +25,7 @@ public class UIFinder extends BaseFinder {
     public void find(DexKitBridge bridge) {
         findBookshelfBannerResponseMethod(bridge);
         findRedDotMethod(bridge);
-        findFeatureListLoadMethod(bridge);
+        findQuickAccessTargets(bridge);
         findVipRelatedTargets(bridge);
         findSearchBarMethod(bridge);
         findFilterHomeMethod(bridge);
@@ -29,17 +34,179 @@ public class UIFinder extends BaseFinder {
         findDynamicMethod(bridge);
         findBookNameClickMethod(bridge);
         findMyPageSearchBarMethod(bridge);
+        findMyPageRecommendEnableMethod(bridge);
+        findMyPageContentMethod(bridge);
+        findMyPageSettingsClickMethod(bridge);
+        findCategoryTabTargets(bridge);
+        findSearchCueListMethod(bridge, HookTargets.KEY_SEARCH_CUE_LIST_METHOD,
+                "com.dragon.read.component.biz.impl.bookmall.search.SearchWordDisplayView");
+        findSearchCueListMethod(bridge, HookTargets.KEY_SEARCH_CUE_KMP_LIST_METHOD,
+                "com.dragon.read.kmp.bookmall.search.SearchWordDisplayViewKMP");
+    }
+
+    private void findCategoryTabTargets(DexKitBridge bridge) {
+        try {
+            List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create()
+                            .paramCount(0)
+                            .returnType(Boolean.TYPE)
+                            .addInvoke("Landroid/content/res/Resources;->getBoolean(I)Z")
+                            .declaredClass(ClassMatcher.create().addMethod(
+                                    MethodMatcher.create().paramCount(0).returnType(
+                                            "com.dragon.read.component.biz.impl.category.optimized.kmp.KmpCategoryFragment")
+                            ))
+            ));
+            if (methods.size() == 1 && methods.get(0).isMethod()) {
+                cacheMethod(HookTargets.KEY_CATEGORY_TAB_DISABLED_METHOD, methods.get(0));
+            } else {
+                log("分类 Tab 门禁无法唯一定位，候选数=" + methods.size());
+            }
+        } catch (Throwable throwable) {
+            log("查找分类 Tab 门禁失败", throwable);
+        }
+        try {
+            List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create()
+                            .declaredClass("com.dragon.read.pages.main.MainFragmentActivity")
+                            .name("onCreate")
+                            .paramTypes(new String[]{"android.os.Bundle"})
+                            .returnType(Void.TYPE)
+            ));
+            if (methods.size() == 1 && methods.get(0).isMethod()) {
+                cacheMethod(HookTargets.KEY_MAIN_ACTIVITY_ON_CREATE_METHOD, methods.get(0));
+            } else {
+                log("主界面 onCreate 无法唯一定位，候选数=" + methods.size());
+            }
+        } catch (Throwable throwable) {
+            log("查找主界面初始化方法失败", throwable);
+        }
+    }
+
+    private void findSearchCueListMethod(DexKitBridge bridge, String key, String className) {
+        try {
+            // 两种搜索框各有唯一的静态 List -> List 预处理入口，不写死混淆方法名。
+            List<MethodData> methods = bridge.findMethod(
+                    FindMethod.create().matcher(
+                            MethodMatcher.create()
+                                    .declaredClass(className)
+                                    .modifiers(Modifier.STATIC)
+                                    .paramTypes(new String[]{"java.util.List"})
+                                    .returnType("java.util.List")
+                    )
+            );
+            if (methods.size() != 1 || !methods.get(0).isMethod()) {
+                log("搜索框热词列表入口无法唯一定位 " + key + "，候选数=" + methods.size());
+                return;
+            }
+            cacheMethod(key, methods.get(0));
+        } catch (Throwable throwable) {
+            log("查找搜索框热词列表入口失败 " + key, throwable);
+        }
+    }
+
+    private void findMyPageSettingsClickMethod(DexKitBridge bridge) {
+        try {
+            List<MethodData> methods = bridge.findMethod(
+                    FindMethod.create().matcher(
+                            MethodMatcher.create()
+                                    .name("onClick")
+                                    .paramTypes(new String[]{"android.view.View"})
+                                    .returnType(Void.TYPE)
+                                    .addUsingString("设置")
+                                    .addInvoke("Lcom/dragon/read/component/interfaces/NsAppNavigator;->openSetting(Landroid/content/Context;Lcom/dragon/read/report/PageRecorder;)V")
+                                    .declaredClass(ClassMatcher.create().addMethod(
+                                            MethodMatcher.create()
+                                                    .name("<init>")
+                                                    .paramTypes(new String[]{"com.dragon.read.component.biz.impl.mine.FanqieMineFragmentV2"})
+                                    ))
+                    )
+            );
+            if (methods.size() != 1 || !methods.get(0).isMethod()) {
+                log("我的页设置点击入口无法唯一定位，候选数=" + methods.size());
+                for (MethodData candidate : methods) {
+                    log("设置点击候选: " + candidate);
+                }
+                return;
+            }
+            cacheMethod(HookTargets.KEY_MY_PAGE_SETTINGS_CLICK_METHOD, methods.get(0));
+        } catch (Throwable throwable) {
+            log("查找我的页设置点击入口失败", throwable);
+        }
+    }
+
+    private void findMyPageContentMethod(DexKitBridge bridge) {
+        try {
+            List<MethodData> methods = bridge.findMethod(
+                    FindMethod.create().matcher(
+                            MethodMatcher.create()
+                                    .declaredClass("com.dragon.read.component.biz.impl.mine.FanqieMineFragmentV2")
+                                    .name("onCreateContent")
+                                    .paramTypes(new String[]{"android.view.LayoutInflater",
+                                            "android.view.ViewGroup", "android.os.Bundle"})
+                                    .returnType("android.view.View")
+                    )
+            );
+            if (methods.size() != 1 || !methods.get(0).isMethod()) {
+                log("我的页内容创建入口无法唯一定位，候选数=" + methods.size());
+                return;
+            }
+            cacheMethod(HookTargets.KEY_MY_PAGE_CONTENT_METHOD, methods.get(0));
+        } catch (Throwable throwable) {
+            log("查找我的页内容创建入口失败", throwable);
+        }
+    }
+
+    private void findMyPageRecommendEnableMethod(DexKitBridge bridge) {
+        try {
+            // 仅关闭我的页瀑布流，不改全局推荐设置或整页创建方法。
+            List<MethodData> methods = bridge.findMethod(
+                    FindMethod.create()
+                            .searchPackages(new String[]{"com.dragon.read.base.ssconfig.template"})
+                            .matcher(
+                                    MethodMatcher.create()
+                                            .addUsingString("mine_tab_staggered_feed_v649")
+                                            // 配置伴生类 a() 也满足字符串及签名，必须区分实际展示门禁。
+                                            .addInvoke("Lcom/dragon/read/absettings/CommonAbResult;->getBookMallRevert()Z")
+                                            .addInvoke("Lcom/dragon/read/app/AppRunningMode;->isFullMode()Z")
+                                            .modifiers(Modifier.STATIC)
+                                            .paramCount(0)
+                                            .returnType(Boolean.TYPE)
+                            )
+            );
+            if (methods.size() != 1 || !methods.get(0).isMethod()) {
+                log("我的页推荐流开关无法唯一定位，候选数=" + methods.size());
+                for (MethodData candidate : methods) {
+                    log("推荐流开关候选: " + candidate);
+                }
+                return;
+            }
+            cacheMethod(HookTargets.KEY_MY_PAGE_RECOMMEND_ENABLE_METHOD, methods.get(0));
+        } catch (Throwable throwable) {
+            log("查找我的页推荐流开关失败", throwable);
+        }
     }
 
     private void findBookshelfBannerResponseMethod(DexKitBridge bridge) {
         try {
+            // 请求成功日志已挪到 Runnable.run()；7.3.9.32 的实际消费方是 g34.x.invoke(Object)。
             MethodData methodData = first(bridge.findMethod(
                     FindMethod.create().matcher(
                             MethodMatcher.create()
-                                    .usingStrings(new String[]{"request banner data success size:"})
-                                    .paramTypes(new String[]{"com.dragon.read.rpc.model.GetBookShelfBannerResponse"})
+                                    .declaredClass("g34.x")
+                                    .name("invoke")
+                                    .paramTypes(new String[]{"java.lang.Object"})
+                                    .returnType("java.lang.Object")
                     )
             ));
+            if (methodData == null) {
+                methodData = first(bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .usingStrings(new String[]{"request banner data success size:"})
+                                        .paramTypes(new String[]{"com.dragon.read.rpc.model.GetBookShelfBannerResponse"})
+                        )
+                ));
+            }
             cacheMethod(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD, methodData);
         } catch (Throwable throwable) {
             log("查找书架 Banner 响应方法失败", throwable);
@@ -74,23 +241,53 @@ public class UIFinder extends BaseFinder {
         }
     }
 
-    private void findFeatureListLoadMethod(DexKitBridge bridge) {
+    private void findQuickAccessTargets(DexKitBridge bridge) {
         try {
-            ClassData classData = first(bridge.findClass(
-                    FindClass.create().matcher(
-                            ClassMatcher.create().usingStrings(new String[]{"CardData(cardInfoList="})
-                    )
-            ));
-            cacheClass(HookTargets.KEY_FEATURE_LIST_LOAD_CLASS, classData);
+            List<MethodData> candidates = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass(ClassMatcher.create().usingStrings(
+                                    new String[]{"FunctionItemConverter"}))
+                            .paramCount(4)
+                            .returnType(List.class)));
+            List<MethodData> converters = new ArrayList<>();
+            for (MethodData method : candidates) {
+                List<String> params = method.getParamTypeNames();
+                if (method.isMethod()
+                        && "androidx.fragment.app.FragmentActivity".equals(params.get(1))
+                        && "kotlin.jvm.functions.Function1".equals(params.get(3))) {
+                    converters.add(method);
+                }
+            }
+            if (converters.size() != 1) {
+                log("快捷功能转换无法唯一定位，候选数=" + converters.size());
+                return;
+            }
+            MethodData converter = converters.get(0);
+            cacheMethod(HookTargets.KEY_QUICK_ACCESS_CONVERT_METHOD, converter);
+            // 保留原类 key 的含义；Hook 层改读新方法 key，不再按类名分流。
+            cacheClass(HookTargets.KEY_FEATURE_LIST_LOAD_CLASS, converter.getDeclaredClass());
+
+            List<MethodData> aggregates = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.mine"})
+                    .matcher(MethodMatcher.create()
+                            .paramTypes(converter.getParamTypeNames().subList(0, 3))
+                            .returnType(List.class)
+                            .addInvoke(converter.getDescriptor())
+                            .addUsingField("Lcom/dragon/read/component/biz/api/model/CardType;->COMMON:Lcom/dragon/read/component/biz/api/model/CardType;", UsingType.Read)
+                            .addInvoke("Ljava/util/ArrayList;->addAll(Ljava/util/Collection;)Z")));
+            if (aggregates.size() == 1 && aggregates.get(0).isMethod()) {
+                cacheMethod(HookTargets.KEY_QUICK_ACCESS_AGGREGATE_METHOD, aggregates.get(0));
+            } else {
+                log("快捷功能聚合无法唯一定位，候选数=" + aggregates.size());
+            }
         } catch (Throwable throwable) {
-            log("查找功能列表加载类失败", throwable);
+            log("查找新版快捷功能目标失败", throwable);
         }
     }
 
     private void findFilterHomeMethod(DexKitBridge bridge) {
-        MethodData filterDataMethod = null;
         try {
-            filterDataMethod = first(bridge.findMethod(
+            MethodData filterDataMethod = first(bridge.findMethod(
                     FindMethod.create()
                             .searchPackages(new String[]{"com.dragon.read"})
                             .matcher(
@@ -104,36 +301,6 @@ public class UIFinder extends BaseFinder {
             cacheMethod(HookTargets.KEY_FILTER_DATA_METHOD, filterDataMethod);
         } catch (Throwable throwable) {
             log("查找筛选数据方法失败", throwable);
-        }
-
-        if (filterDataMethod == null) {
-            return;
-        }
-
-        try {
-            MethodData filterBannerMethod = first(bridge.findMethod(
-                    FindMethod.create().matcher(
-                            MethodMatcher.create()
-                                    .declaredClass(filterDataMethod.getDeclaredClassName())
-                                    .paramTypes(new String[]{"com.dragon.read.rpc.model.CellViewData", "int"})
-                                    .returnType("com.dragon.read.feed.bookmall.card.model.staggered.BaseInfiniteModel")
-                    )
-            ));
-            cacheMethod(HookTargets.KEY_FILTER_BANNER_METHOD, filterBannerMethod);
-
-            if (filterBannerMethod != null) {
-                MethodData removeRankMethod = first(bridge.findMethod(
-                        FindMethod.create().matcher(
-                                MethodMatcher.create()
-                                        .declaredClass(filterBannerMethod.getDeclaredClassName())
-                                        .paramTypes(new String[]{"com.dragon.read.rpc.model.CellViewData", "int"})
-                                        .addInvoke("Lcom/dragon/read/component/biz/impl/bookmall/holder/mainrank/RankMixContentHolder$RankMixContentModel;-><init>()V")
-                        )
-                ));
-                cacheMethod(HookTargets.KEY_REMOVE_RANK_METHOD, removeRankMethod);
-            }
-        } catch (Throwable throwable) {
-            log("查找首页过滤相关方法失败", throwable);
         }
     }
 
@@ -214,10 +381,17 @@ public class UIFinder extends BaseFinder {
     private void findTabRouteHelperClass(DexKitBridge bridge) {
         try {
             ClassData classData = first(bridge.findClass(
-                    FindClass.create().matcher(
-                            ClassMatcher.create().usingStrings(new String[]{"TabRouteExperimentHelper"})
-                    )
+                    FindClass.create()
+                            .searchPackages(new String[]{"com.dragon.read.pages.main"})
+                            .matcher(ClassMatcher.create().usingStrings(new String[]{"TabRouteExperimentHelper"}))
             ));
+            if (classData == null) {
+                classData = first(bridge.findClass(
+                        FindClass.create().matcher(
+                                ClassMatcher.create().usingStrings(new String[]{"TabRouteExperimentHelper"})
+                        )
+                ));
+            }
             cacheClass(HookTargets.KEY_TAB_ROUTE_HELPER_CLASS, classData);
         } catch (Throwable throwable) {
             log("查找底栏路由实验帮助类失败", throwable);

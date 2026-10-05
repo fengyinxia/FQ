@@ -1,11 +1,15 @@
 package com.fuck.fanqie.hooks.download;
 
+import android.os.Build;
+import android.text.Html;
+
 import com.fuck.fanqie.HookTargets;
 import com.fuck.fanqie.cache.CachedTargets;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import de.robv.android.xposed.XposedHelpers;
@@ -28,11 +32,11 @@ public final class DownloadContentProcessor {
             if (serviceClass == null) {
                 return null;
             }
-            Object service = XposedHelpers.callStaticMethod(serviceClass, "j");
+            Object service = XposedHelpers.callStaticMethod(serviceClass, "d");
             if (service == null) {
                 return null;
             }
-            Object single = XposedHelpers.callMethod(service, "h", bookId);
+            Object single = XposedHelpers.callMethod(service, "c", bookId);
             if (single == null) {
                 return null;
             }
@@ -95,12 +99,22 @@ public final class DownloadContentProcessor {
                 if (chapterInfo == null) {
                     continue;
                 }
+                String encryptedContent = getStringFieldSafely(chapterInfo, "content");
                 Object decryptedChapterInfo = decryptChapterInfo(chapterInfo);
+                if (decryptedChapterInfo == null) {
+                    continue;
+                }
                 String content = getStringFieldSafely(decryptedChapterInfo, "content");
-                if (content == null || content.length() == 0) {
+                // 不把仍未解密的原始正文当作 TXT 导出。
+                int keyVersion = XposedHelpers.getIntField(chapterInfo, "keyVersion");
+                if (content == null || content.length() == 0
+                        || (keyVersion != Integer.MIN_VALUE && content.equals(encryptedContent))) {
                     continue;
                 }
                 content = extractPlainTextContent(decryptedChapterInfo, content);
+                if (content == null || content.length() == 0) {
+                    continue;
+                }
                 String title = pickNonEmpty(getStringFieldSafely(decryptedChapterInfo, "name"), directorySnapshot.chapterTitles.get(chapterId));
                 String bookName = pickNonEmpty(snapshot.bookName, getStringFieldSafely(decryptedChapterInfo, "bookName"));
                 if ((bookName == null || bookName.length() == 0) && directorySnapshot.bookName != null) {
@@ -122,47 +136,40 @@ public final class DownloadContentProcessor {
         return restoredCount;
     }
 
-    public String extractPlainTextContent(Object chapterInfo, String fallbackContent) {
-        if (fallbackContent == null || fallbackContent.length() == 0) {
-            return fallbackContent;
+    public String extractPlainTextContent(Object chapterInfo, String decryptedContent) {
+        // x.a 只解密/解压；EPUB 章节仍是完整 XHTML 文档，不能原样写进 TXT。
+        if (decryptedContent == null || decryptedContent.length() == 0) {
+            return null;
         }
-        try {
-            Class<?> helperClass = XposedHelpers.findClass("com.dragon.read.reader.utils.ChapterOriginalContentHelper", hostClassLoader);
-            Object helper = XposedHelpers.newInstance(helperClass);
-            String originalContent = getStringFieldSafely(chapterInfo, "content");
-            boolean restoreNeeded = originalContent == null || !fallbackContent.equals(originalContent);
-            if (restoreNeeded) {
-                XposedHelpers.setObjectField(chapterInfo, "content", fallbackContent);
-            }
-            try {
-                Object result = XposedHelpers.callMethod(helper, "b0", chapterInfo);
-                if (result instanceof String && ((String) result).length() != 0) {
-                    return (String) result;
-                }
-            } finally {
-                if (restoreNeeded) {
-                    XposedHelpers.setObjectField(chapterInfo, "content", originalContent);
-                }
-            }
-        } catch (Throwable ignored) {
-            return fallbackContent;
+        String lower = decryptedContent.toLowerCase(Locale.ROOT);
+        String trimmed = lower.trim();
+        if (!trimmed.startsWith("<?xml") && !trimmed.startsWith("<!doctype")
+                && !trimmed.startsWith("<html") && !trimmed.startsWith("<body")
+                && !trimmed.startsWith("<blk") && !trimmed.startsWith("<p")) {
+            return decryptedContent;
         }
-        return fallbackContent;
+        int bodyStart = lower.indexOf("<body");
+        int start = bodyStart < 0 ? 0 : decryptedContent.indexOf('>', bodyStart) + 1;
+        int end = bodyStart < 0 ? decryptedContent.length() : lower.indexOf("</body>", start);
+        if (start < 0 || (bodyStart >= 0 && (start <= bodyStart || end < start))) {
+            return null;
+        }
+        String body = decryptedContent.substring(start, end);
+        body = body.replaceAll("(?is)<script\\b[^>]*>.*?</script\\s*>", "")
+                .replaceAll("(?is)<style\\b[^>]*>.*?</style\\s*>", "");
+        String text = Build.VERSION.SDK_INT >= 24
+                ? Html.fromHtml(body, Html.FROM_HTML_MODE_COMPACT).toString()
+                : Html.fromHtml(body).toString();
+        String lineBreak = System.lineSeparator();
+        text = text.replace('\u00a0', ' ').replaceAll("[ \\t]+\\n", lineBreak)
+                .replaceAll("\\n{3,}", lineBreak + lineBreak).trim();
+        return text.length() == 0 ? null : text;
     }
 
     private Object loadCachedChapterInfo(String bookId, String chapterId) {
         try {
             Class<?> helperClass = XposedHelpers.findClass("com.dragon.read.reader.utils.ChapterOriginalContentHelper", hostClassLoader);
-            Object helper = XposedHelpers.newInstance(helperClass);
-            Object result = XposedHelpers.callMethod(helper, "h1", bookId, chapterId);
-            if (result != null) {
-                return result;
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
-            Object companion = getChapterOriginalContentHelper();
-            return companion == null ? null : XposedHelpers.callMethod(companion, "d", bookId, chapterId);
+            return XposedHelpers.callStaticMethod(helperClass, "i", bookId, chapterId);
         } catch (Throwable ignored) {
             return null;
         }
@@ -175,17 +182,11 @@ public final class DownloadContentProcessor {
         try {
             Class<?> helperClass = XposedHelpers.findClass("com.dragon.read.reader.utils.ChapterOriginalContentHelper", hostClassLoader);
             Object helper = XposedHelpers.newInstance(helperClass);
-            Object single = XposedHelpers.callMethod(helper, "c0", chapterInfo);
-            if (single != null) {
-                Object decrypted = XposedHelpers.callMethod(single, "blockingGet");
-                if (decrypted != null) {
-                    return decrypted;
-                }
-            }
+            Object single = XposedHelpers.callMethod(helper, "c", chapterInfo);
+            return single == null ? null : XposedHelpers.callMethod(single, "blockingGet");
         } catch (Throwable ignored) {
-            return chapterInfo;
+            return null;
         }
-        return chapterInfo;
     }
 
     private void addDirectoryChapter(DirectorySnapshot snapshot, String chapterId, String title, int index) {
@@ -198,15 +199,6 @@ public final class DownloadContentProcessor {
         snapshot.chapterOrder.put(chapterId, Integer.valueOf(index));
         if (title != null && title.length() != 0) {
             snapshot.chapterTitles.put(chapterId, title);
-        }
-    }
-
-    private Object getChapterOriginalContentHelper() {
-        try {
-            Class<?> helperClass = XposedHelpers.findClass("com.dragon.read.reader.utils.ChapterOriginalContentHelper", hostClassLoader);
-            return XposedHelpers.getStaticObjectField(helperClass, "f192202c");
-        } catch (Throwable ignored) {
-            return null;
         }
     }
 

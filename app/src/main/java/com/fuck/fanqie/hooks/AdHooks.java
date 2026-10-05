@@ -27,7 +27,6 @@ public class AdHooks extends BaseHook {
     public void apply() {
         applyAdHooks();
         applyLuckyDogHooks();
-        applyHideBannerHooks();
         applyHideBookshelfRelateVideoBannerHooks();
         applyFloatingViewHooks();
         applyClickAgentHooks();
@@ -112,37 +111,6 @@ public class AdHooks extends BaseHook {
         }
     }
 
-    public void applyHideBannerHooks() {
-        try {
-            Method filterBannerMethod = cachedTargets.method(HookTargets.KEY_FILTER_BANNER_METHOD);
-            if (filterBannerMethod == null) {
-                XposedBridge.log("FQHook+Banner: 未找到 Banner 相关方法");
-                return;
-            }
-            XposedBridge.hookMethod(filterBannerMethod, new XC_MethodHook() {
-                private volatile Field cachedPictureDataField;
-
-                @Override
-                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    Object target = param.args[0];
-                    if (target == null) {
-                        return;
-                    }
-                    Field pictureDataField = cachedPictureDataField;
-                    if (pictureDataField == null) {
-                        pictureDataField = target.getClass().getDeclaredField("pictureData");
-                        pictureDataField.setAccessible(true);
-                        cachedPictureDataField = pictureDataField;
-                    }
-                    pictureDataField.set(target, new ArrayList<>());
-                }
-            });
-            XposedBridge.log("FQHook+Banner: 成功应用 Banner 隐藏钩子");
-        } catch (Throwable throwable) {
-            HookUtils.logError("FQHook+Banner: 应用 Banner 隐藏钩子失败: ", throwable);
-        }
-    }
-
     public void applyHideBookshelfRelateVideoBannerHooks() {
         try {
             Method bannerResponseMethod = cachedTargets.method(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD);
@@ -158,7 +126,11 @@ public class AdHooks extends BaseHook {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    Object response = param.args[0];
+                    Object response = param.args.length == 0 ? null : param.args[0];
+                    if (response == null || !"com.dragon.read.rpc.model.GetBookShelfBannerResponse"
+                            .equals(response.getClass().getName())) {
+                        return;
+                    }
                     Object data = readField(response, "data", true);
                     if (data == null) {
                         return;

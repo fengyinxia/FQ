@@ -69,7 +69,9 @@ public class FrameworkHooks extends BaseHook {
             XposedBridge.hookAllMethods(npthClass, "reportBizException", replacement);
             XposedBridge.hookAllMethods(npthClass, "reportDartError", replacement);
             XposedBridge.hookAllMethods(npthClass, "reportGameException", replacement);
-            XposedBridge.hookAllMethods(npthClass, "startOptMtkBuffer", replacement);
+            // 该方法返回 int，不能沿用其它 void 方法的 null 替换值。
+            XposedHelpers.findAndHookMethod(npthClass, "startOptMtkBuffer", int.class,
+                    XC_MethodReplacement.returnConstant(Integer.valueOf(0)));
             XposedBridge.hookAllMethods(npthClass, "registerCrashCallback", replacement);
             XposedBridge.hookAllMethods(npthClass, "setAttachUserData", replacement);
 

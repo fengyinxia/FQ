@@ -6,12 +6,14 @@ import com.fuck.fanqie.cache.TargetScanResult;
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.enums.UsingType;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassData;
 import org.luckypray.dexkit.result.MethodData;
 
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 public class FeatureFinder extends BaseFinder {
     public FeatureFinder(TargetScanResult scanResult) {
@@ -24,6 +26,41 @@ public class FeatureFinder extends BaseFinder {
         findUpdateMethod(bridge);
         findAbtestMethod(bridge);
         findChapterControlMethod(bridge);
+        findCoverTitleRenderMethods(bridge);
+    }
+
+    private void findCoverTitleRenderMethods(DexKitBridge bridge) {
+        try {
+            List<MethodData> textMethods = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.reader.bookcover"})
+                    .matcher(MethodMatcher.create()
+                            .paramTypes("com.dragon.read.reader.bookcover.BookCoverInfo")
+                            .returnType(Void.TYPE)
+                            .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->bookName:Ljava/lang/String;", UsingType.Read)
+                            .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->bookShortName:Ljava/lang/String;", UsingType.Read)
+                            .addInvoke("Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V")));
+            if (textMethods.size() != 1 || !textMethods.get(0).isMethod()) {
+                log("封面文字渲染无法唯一定位，候选数=" + textMethods.size());
+                return;
+            }
+            MethodData textMethod = textMethods.get(0);
+            cacheMethod(HookTargets.KEY_COVER_TEXT_RENDER_METHOD, textMethod);
+
+            List<MethodData> imageMethods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass(textMethod.getDeclaredClassName())
+                            .paramTypes("com.dragon.read.reader.bookcover.BookCoverInfo", "boolean")
+                            .returnType(Void.TYPE)
+                            .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->bookNameUrl:Ljava/lang/String;", UsingType.Read)
+                            .addInvoke(textMethod.getDescriptor())));
+            if (imageMethods.size() == 1 && imageMethods.get(0).isMethod()) {
+                cacheMethod(HookTargets.KEY_COVER_IMAGE_RENDER_METHOD, imageMethods.get(0));
+            } else {
+                log("封面图片渲染无法唯一定位，候选数=" + imageMethods.size());
+            }
+        } catch (Throwable throwable) {
+            log("查找新版封面书名渲染失败", throwable);
+        }
     }
 
     private void findChapterControlMethod(DexKitBridge bridge) {
@@ -60,15 +97,34 @@ public class FeatureFinder extends BaseFinder {
         }
 
         try {
-            MethodData coverHotCommentMethod = first(bridge.findMethod(
+            // 新版移除了 bookInfo 检查字符串；专属 AB 配置串仍在热评 View 构建入口。
+            List<MethodData> coverMethods = bridge.findMethod(
                     FindMethod.create().matcher(
                             MethodMatcher.create()
-                                    .usingStrings(new String[]{"bookInfo"})
+                                    .addUsingString("book_cover_hot_comments_v617")
+                                    .paramTypes(new String[]{
+                                            "com.dragon.read.component.biz.interfaces.NsReaderActivity",
+                                            "com.dragon.read.reader.bookcover.BookCoverInfo"})
                                     .addInvoke("Lcom/dragon/read/util/BookUtils;->isPublishBook(Ljava/lang/String;)Z")
                                     .addInvoke("Lcom/dragon/read/util/BookUtils;->isPublishBookGenreType(Ljava/lang/String;)Z")
                     )
-            ));
-            cacheMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD, coverHotCommentMethod);
+            );
+            if (coverMethods.isEmpty()) {
+                // 保留旧版定位条件；不对多候选盲取第一个。
+                coverMethods = bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .usingStrings(new String[]{"bookInfo"})
+                                        .addInvoke("Lcom/dragon/read/util/BookUtils;->isPublishBook(Ljava/lang/String;)Z")
+                                        .addInvoke("Lcom/dragon/read/util/BookUtils;->isPublishBookGenreType(Ljava/lang/String;)Z")
+                        )
+                );
+            }
+            if (coverMethods.size() == 1 && coverMethods.get(0).isMethod()) {
+                cacheMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD, coverMethods.get(0));
+            } else {
+                log("封面热门评论入口无法唯一定位，候选数=" + coverMethods.size());
+            }
         } catch (Throwable throwable) {
             log("查找封面热门评论控件失败", throwable);
         }
@@ -82,6 +138,21 @@ public class FeatureFinder extends BaseFinder {
                                             .addInvoke("Lcom/dragon/read/base/ui/util/ScreenUtils;->getScreenWidth(Landroid/content/Context;)I")
                             )
             ));
+            if (chapterEndControlMethod != null && !chapterEndControlMethod.isMethod()) {
+                // 7.3.9.32 命中的是章末控件 View 的构造器；缓存可 Hook 的附着方法。
+                chapterEndControlMethod = first(bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .declaredClass(chapterEndControlMethod.getDeclaredClassName())
+                                        .name("onAttachedToWindow")
+                                        .paramCount(0)
+                                        .returnType(Void.TYPE)
+                        )
+                ));
+                if (chapterEndControlMethod == null) {
+                    log("章末控件构造器所在类没有 onAttachedToWindow，跳过");
+                }
+            }
             cacheMethod(HookTargets.KEY_CHAPTER_END_CONTROL_METHOD, chapterEndControlMethod);
         } catch (Throwable throwable) {
             log("查找章末控件失败", throwable);
@@ -108,6 +179,7 @@ public class FeatureFinder extends BaseFinder {
                             .searchPackages(new String[]{"com.dragon.read.pages.splash"})
                             .matcher(
                                     MethodMatcher.create()
+                                            .declaredClass("com.dragon.read.pages.splash.SplashActivity")
                                             .paramTypes(new String[]{"android.content.Intent", "android.os.Bundle"})
                                             .returnType(Void.TYPE)
                                             .addInvoke("Landroid/app/Activity;->startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
@@ -125,14 +197,26 @@ public class FeatureFinder extends BaseFinder {
 
     private void findUpdateMethod(DexKitBridge bridge) {
         try {
+            // 旧版 MSG_CANCEL_PROGRESS 字符串已移除，当前更新消息由 z$b.handleMessage 处理。
             MethodData updateMethod = first(bridge.findMethod(
                     FindMethod.create().matcher(
                             MethodMatcher.create()
+                                    .declaredClass("com.ss.android.update.z$b")
+                                    .name("handleMessage")
                                     .paramTypes(new String[]{"android.os.Message"})
-                                    .addUsingString("from MSG_CANCEL_PROGRESS")
-                                    .addUsingString("reason_alpha_pkg_update_bg_download")
+                                    .returnType(Void.TYPE)
                     )
             ));
+            if (updateMethod == null) {
+                updateMethod = first(bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .paramTypes(new String[]{"android.os.Message"})
+                                        .addUsingString("from MSG_CANCEL_PROGRESS")
+                                        .addUsingString("reason_alpha_pkg_update_bg_download")
+                        )
+                ));
+            }
             cacheMethod(HookTargets.KEY_UPDATE_METHOD, updateMethod);
         } catch (Throwable throwable) {
             log("查找更新处理方法失败", throwable);
