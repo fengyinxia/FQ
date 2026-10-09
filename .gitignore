@@ -1,4 +1,2 @@
-# 仓库只发布这两份分析文档；其他分析资料保留在本地。
-/analysis/*
-!/analysis/hook-offset-review-7.3.9.32.md
-!/analysis/project-handoff.md
+# 分析文档仅保留在本地，不同步到仓库
+/analysis/
