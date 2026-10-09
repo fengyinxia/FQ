@@ -6,3 +6,6 @@
 
 # 本机 SDK 路径
 /local.properties
+
+# 项目规则文件仅本地使用
+/AGENTS.md
