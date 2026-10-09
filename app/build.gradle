@@ -3,6 +3,12 @@ plugins {
 }
 
 android {
+    def keystorePropertiesFile = rootProject.file('keystore.properties')
+    def keystoreProperties = new Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    }
+
     namespace 'com.fuck.fanqie'
     compileSdk 33
 
@@ -23,11 +29,29 @@ android {
         }
     }
 
+    signingConfigs {
+        // 密钥不落库：本地读根目录 keystore.properties（已 gitignore），
+        // CI 通过环境变量 RELEASE_STORE_FILE / RELEASE_STORE_PASSWORD /
+        // RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD 注入。
+        release {
+            def storeFilePath = keystoreProperties.getProperty('storeFile') ?: System.getenv('RELEASE_STORE_FILE')
+            def storePass = keystoreProperties.getProperty('storePassword') ?: System.getenv('RELEASE_STORE_PASSWORD')
+            def alias = keystoreProperties.getProperty('keyAlias') ?: System.getenv('RELEASE_KEY_ALIAS')
+            def keyPass = keystoreProperties.getProperty('keyPassword') ?: System.getenv('RELEASE_KEY_PASSWORD')
+            if (storeFilePath != null && storePass != null && alias != null && keyPass != null) {
+                storeFile file(storeFilePath)
+                storePassword storePass
+                keyAlias alias
+                keyPassword keyPass
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {

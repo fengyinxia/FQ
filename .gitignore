@@ -1,2 +1,8 @@
 # 分析文档仅保留在本地，不同步到仓库
 /analysis/
+
+# 本地签名配置（含密钥口令，勿入库）
+/keystore.properties
+
+# 本机 SDK 路径
+/local.properties
