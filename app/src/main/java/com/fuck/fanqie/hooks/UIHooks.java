@@ -7,6 +7,8 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 
 import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.PluginSettings;
+import com.fuck.fanqie.DynamicItems;
 import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Field;
@@ -16,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -25,10 +26,6 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class UIHooks extends BaseHook {
-    private static final Set<String> ALLOWED_RECOMMEND_GROUP_TYPES = new HashSet<>(Arrays.asList(
-            "Book",
-            "RankListBook"
-    ));
     private final CachedTargets cachedTargets;
     private final RecommendFilterHelper recommendFilterHelper;
     private final SearchCueWordFilter searchCueWordFilter = new SearchCueWordFilter();
@@ -58,13 +55,14 @@ public class UIHooks extends BaseHook {
     }
 
     private void applyMyPageWalletHooks() {
+        installWalletComponentHook();
+        if (!PluginSettings.enabled("sidebar")) return;
         try {
             Method method = cachedTargets.method(HookTargets.KEY_MY_PAGE_CONTENT_METHOD);
             if (method == null || !isPageContentFactory(method)) {
                 XposedBridge.log("FQHook+MyPageWallet: 未找到兼容的我的页内容创建入口，跳过");
                 return;
             }
-            installWalletComponentHook();
             final Method settingsClick = cachedTargets.method(HookTargets.KEY_MY_PAGE_SETTINGS_CLICK_METHOD);
             XposedBridge.hookMethod(method, new XC_MethodHook() {
                 @Override
@@ -140,6 +138,8 @@ public class UIHooks extends BaseHook {
                         return;
                     }
                     final View wallet = (View) value;
+                    if (!DynamicItems.observe(DynamicItems.MINE, "component/wallet", "钱包与福利卡片",
+                            PluginSettings.enabled("mine_wallet"))) return;
                     wallet.setVisibility(View.GONE);
                     wallet.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
                         @Override
@@ -190,6 +190,7 @@ public class UIHooks extends BaseHook {
     }
 
     private void applyDisableMyPageRecommendHooks() {
+        if (!DynamicItems.observe(DynamicItems.MINE, DynamicItems.MINE_FEED_ID, "推荐流", false)) return;
         try {
             Method method = cachedTargets.method(HookTargets.KEY_MY_PAGE_RECOMMEND_ENABLE_METHOD);
             if (method == null) {
@@ -220,6 +221,7 @@ public class UIHooks extends BaseHook {
     }
 
     private void applyDisableMyPageSidebarHooks() {
+        if (!PluginSettings.enabled("sidebar")) return;
         try {
             Class<?> configClass = XposedHelpers.findClass(
                     "com.dragon.read.base.ssconfig.template.GameRevisitPathV693Model",
@@ -258,22 +260,6 @@ public class UIHooks extends BaseHook {
         }
     }
 
-    private boolean isWantedFeature(Object featureId) {
-        if (featureId == null) {
-            return false;
-        }
-        String value = featureId.toString();
-        String id = value.toUpperCase(Locale.ROOT);
-        return "READING_HISTORY".equals(id)
-                || "READING_PREFERENCE".equals(id)
-                || "BOOK_DOWNLOAD".equals(id)
-                || "MY_MESSAGE".equals(id)
-                || "浏览历史".equals(value)
-                || "阅读偏好".equals(value)
-                || "下载管理".equals(value)
-                || "我的消息".equals(value);
-    }
-
     @SuppressWarnings("unchecked")
     private void processTabData(Object target) {
         try {
@@ -286,38 +272,38 @@ public class UIHooks extends BaseHook {
                 return;
             }
 
-            Set<String> allowedTabs = new HashSet<>(Arrays.asList(
-                    "推荐",
-                    "小说",
-                    "经典",
-                    "知识",
-                    "新书",
-                    "视频"
-            ));
+            int selected = XposedHelpers.getIntField(target, "selectIndex");
             List<Object> filtered = new ArrayList<>();
-            for (Object tabData : tabDataList) {
-                try {
-                    String tabName = (String) XposedHelpers.getObjectField(tabData, "tabName");
-                    if (tabName != null && allowedTabs.contains(tabName)) {
-                        filtered.add(tabData);
-                    }
-                } catch (Throwable throwable) {
-                    XposedBridge.log("FQHook-SlidingTab: 处理标签失败: " + throwable);
+            int newSelected = -1;
+            for (int i = 0; i < tabDataList.size(); i++) {
+                Object tab = tabDataList.get(i);
+                boolean blocked = false;
+                if (tab != null) {
+                    // 使用宿主业务类型与书城ID，不用标题或列表下标当身份。
+                    int type = XposedHelpers.getIntField(tab, "tabType");
+                    long store = XposedHelpers.getLongField(tab, "bookStoreId");
+                    String title = (String) XposedHelpers.getObjectField(tab, "tabName");
+                    blocked = DynamicItems.observe(DynamicItems.TOP_TABS,
+                            "type/" + type + "/store/" + store, title, false);
+                }
+                if (!blocked) {
+                    if (i == selected) newSelected = filtered.size();
+                    filtered.add(tab);
                 }
             }
-
-            if (filtered.isEmpty() && !tabDataList.isEmpty()) {
-                filtered.add(tabDataList.get(0));
-            }
-
+            if (filtered.size() == tabDataList.size()) return;
+            // 宿主需要非空频道；全屏蔽时保留首项，不留下空白页。
+            if (filtered.isEmpty()) filtered.add(tabDataList.get(0));
             XposedHelpers.setObjectField(target, "bookMallTabDataList", filtered);
-            XposedHelpers.setIntField(target, "selectIndex", 0);
+            XposedHelpers.setIntField(target, "selectIndex", Math.max(0, newSelected));
+            XposedBridge.log("FQHook-SlidingTab: 动态频道 " + tabDataList.size() + "→" + filtered.size());
         } catch (Throwable throwable) {
             XposedBridge.log("FQHook-SlidingTab: 过滤逻辑失败: " + throwable);
         }
     }
 
     public void applyCustomVipHooks() {
+        if (!PluginSettings.enabled("ads")) return;
         Class<?> vipInfoModelClass = cachedTargets.type(HookTargets.KEY_VIP_INFO_MODEL_CLASS);
         if (vipInfoModelClass == null) {
             return;
@@ -341,12 +327,19 @@ public class UIHooks extends BaseHook {
     public void applyMyPageVipEntranceHooks() {
         Method method = cachedTargets.method(HookTargets.KEY_MY_PAGE_VIP_ENTRANCE_METHOD);
         if (method != null) {
-            XposedBridge.hookMethod(method, XC_MethodReplacement.returnConstant(null));
-            XposedBridge.log("FQHook+applyHooks: 已禁用我的页面VIP入口");
+            XposedBridge.hookMethod(method, new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    if (!param.hasThrowable() && param.getResult() != null && MineItemFilter.observe("VIP", null)) {
+                        param.setResult(null);
+                    }
+                }
+            });
+            XposedBridge.log("FQHook+applyHooks: 已安装我的页会员入口动态发现与过滤");
         }
     }
 
     public void applyMyPageSearchHooks() {
+        if (!PluginSettings.enabled("search_mine")) return;
         disableMyPageDynamicSearch();
     }
 
@@ -425,6 +418,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyRedDotHooks() {
+        if (!PluginSettings.enabled("red_dot")) return;
         Method method = cachedTargets.method(HookTargets.KEY_RED_DOT_METHOD);
         if (method == null) {
             return;
@@ -480,13 +474,13 @@ public class UIHooks extends BaseHook {
                             }
                             Object featureType = XposedHelpers.getObjectField(item, "a");
                             if (!(featureType instanceof Enum)
-                                    || isWantedFeature(((Enum<?>) featureType).name())) {
+                                    || !MineItemFilter.observe(((Enum<?>) featureType).name(), null)) {
                                 kept.add(item);
                             }
                         }
                         XposedBridge.log("FQHook+RemoveCard: 快捷功能候选=" + items.size()
                                 + "，允许=" + kept.size());
-                        if (!kept.isEmpty() && kept.size() != items.size()) {
+                        if (kept.size() != items.size()) {
                             XposedHelpers.setObjectField(card, "b", kept);
                             XposedBridge.log("FQHook+RemoveCard: 已过滤新版快捷功能 "
                                     + (items.size() - kept.size()) + " 项");
@@ -510,15 +504,13 @@ public class UIHooks extends BaseHook {
                 XposedBridge.log("FQHook+RemoveCard: 未找到兼容的快捷功能聚合方法，跳过");
                 return;
             }
-            final Set<Class<?>> allowed = new HashSet<>();
-            for (String key : new String[]{HookTargets.KEY_QUICK_HISTORY_CLASS, HookTargets.KEY_QUICK_DOWNLOAD_CLASS,
-                    HookTargets.KEY_QUICK_MESSAGE_CLASS, HookTargets.KEY_QUICK_FOLLOW_CLASS}) {
-                Class<?> model = cachedTargets.type(key);
-                if (model == null) {
-                    XposedBridge.log("FQHook+RemoveCard: 允许模型缺失，跳过聚合过滤: " + key);
-                    return;
-                }
-                allowed.add(model);
+            final java.util.Map<Class<?>, String> types = new java.util.HashMap<>();
+            String[] keys = {HookTargets.KEY_QUICK_HISTORY_CLASS, HookTargets.KEY_QUICK_DOWNLOAD_CLASS,
+                    HookTargets.KEY_QUICK_MESSAGE_CLASS, HookTargets.KEY_QUICK_FOLLOW_CLASS};
+            String[] identities = {"READING_HISTORY", "BOOK_DOWNLOAD", "MY_MESSAGE", "MY_FOLLOW"};
+            for (int i = 0; i < keys.length; i++) {
+                Class<?> model = cachedTargets.type(keys[i]);
+                if (model != null) types.put(model, identities[i]);
             }
             XposedBridge.hookMethod(aggregate, new XC_MethodHook() {
                 @Override
@@ -535,13 +527,11 @@ public class UIHooks extends BaseHook {
                         if (item == null) {
                             continue;
                         }
-                        if (allowed.contains(item.getClass())) {
-                            kept.add(item);
-                        }
+                        String identity = types.get(item.getClass());
+                        // 聚合DTO没有稳定业务码时保留，不能用混淆类名充当用户选择ID。
+                        if (identity == null || !MineItemFilter.observe(identity, null)) kept.add(item);
                     }
-                    if (kept.isEmpty()) {
-                        XposedBridge.log("FQHook+RemoveCard: 聚合列表未识别允许项，保留原列表");
-                    } else if (kept.size() != items.size()) {
+                    if (kept.size() != items.size()) {
                         param.setResult(kept);
                         XposedBridge.log("FQHook+RemoveCard: 聚合列表候选=" + items.size()
                                 + "，保留=" + kept.size());
@@ -574,7 +564,7 @@ public class UIHooks extends BaseHook {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 Object cellViewData = param.args.length > 0 ? param.args[0] : null;
-                String reason = recommendFilterHelper.getFilterReason(cellViewData, ALLOWED_RECOMMEND_GROUP_TYPES);
+                String reason = recommendFilterHelper.filterTree(cellViewData, true);
                 if (reason == null) {
                     return;
                 }
@@ -582,7 +572,7 @@ public class UIHooks extends BaseHook {
                 XposedBridge.log("FQHook+RecommendFlow: 已过滤推荐流卡片 " + reason);
             }
         });
-        XposedBridge.log("FQHook+RecommendFlow: 保留 Book / RankListBook，并额外过滤听书样式卡片");
+        XposedBridge.log("FQHook+RecommendFlow: 已安装动态目录发现与按项目过滤");
     }
 
     private void installRecommendSceneHook(String key, final int sceneIndex) {
@@ -600,7 +590,7 @@ public class UIHooks extends BaseHook {
                 protected void beforeHookedMethod(MethodHookParam param) {
                     Object scene = sceneIndex < 0 ? null : param.args[sceneIndex];
                     String name = scene instanceof Enum<?> ? ((Enum<?>) scene).name() : String.valueOf(scene);
-                    if (seen.add("scene=" + name)) {
+                    if (seen.size() < 24 && seen.add("scene=" + name)) {
                         XposedBridge.log("FQHook+RecommendFlow: " + key + " 实际场景=" + name);
                     }
                     // 只处理书城主推荐场景，不拦搜索、书架、听书独立频道或章末。
@@ -612,9 +602,9 @@ public class UIHooks extends BaseHook {
                     }
                     try {
                         Object cell = param.args[0];
-                        // 旧原生桥会传 null；这里只去除明确音频/书荒，不套全量白名单。
+                        // 专属书城入口本身确定推荐范围；通用原生 null 场景只识别明确类型。
                         String reason = recommendFilterHelper.filterTree(cell,
-                                nativeWithoutScene ? null : ALLOWED_RECOMMEND_GROUP_TYPES);
+                                sceneIndex < 0 || !nativeWithoutScene);
                         if (reason != null) {
                             param.setResult(new ArrayList<>());
                             XposedBridge.log("FQHook+RecommendFlow: 场景过滤 " + key + " " + reason);
@@ -637,6 +627,7 @@ public class UIHooks extends BaseHook {
 
     @SuppressWarnings("unchecked")
     public void applySearchBarHooks() {
+        if (!PluginSettings.enabled("search_page")) return;
         final Set<String> filteredClassNames = new HashSet<>(Arrays.asList(
                 "com.dragon.read.component.biz.impl.holder.HotSearchWordsHolder$HotWordsModel",
                 "com.dragon.read.component.biz.impl.holder.middlepage.searchrank.model.SearchRankModel",
@@ -672,6 +663,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applySearchWordHooks() {
+        if (!PluginSettings.enabled("search_words")) return;
         try {
             Class<?> searchCueWordExtendClass = XposedHelpers.findClass("com.dragon.read.search.SearchCueWordExtend", hostClassLoader);
             Class<?> searchCueWordClass = XposedHelpers.findClass("com.dragon.read.rpc.model.SearchCueWord", hostClassLoader);

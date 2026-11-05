@@ -1,16 +1,12 @@
 package com.fuck.fanqie.hooks;
 
 import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.PluginSettings;
 import com.fuck.fanqie.cache.CachedTargets;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -26,8 +22,8 @@ final class KmpMyPageHooks extends BaseHook {
 
     @Override
     public void apply() {
-        installTopBar();
-        installQuickAccess();
+        if (PluginSettings.any("search_mine", "sidebar")) installTopBar();
+        installQuickAccess(); // 发现链常驻，用户不屏蔽时也更新目录。
     }
 
     private void installTopBar() {
@@ -53,13 +49,16 @@ final class KmpMyPageHooks extends BaseHook {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) {
                         // false/false/false 进入宿主左侧 weight Spacer，搜索不绘制且保留头部空间。
-                        param.args[0] = false;
-                        param.args[4] = false;
-                        param.args[5] = false;
-                        param.args[6] = false;
+                        if (PluginSettings.enabled("search_mine")) {
+                            param.args[0] = false;
+                            param.args[4] = false;
+                            param.args[5] = false;
+                        }
+                        if (PluginSettings.enabled("sidebar")) param.args[6] = false;
                         if (!logged) {
                             logged = true;
-                            XposedBridge.log("FQHook+KmpMine: 已关闭头部搜索并切换原生设置入口，保留扫码和主题");
+                            XposedBridge.log("FQHook+KmpMine: 已按配置处理头部，隐藏搜索="
+                                    + PluginSettings.enabled("search_mine") + "，设置入口=" + PluginSettings.enabled("sidebar"));
                         }
                     }
                 });
@@ -79,8 +78,6 @@ final class KmpMyPageHooks extends BaseHook {
                 XposedBridge.log("FQHook+KmpMine: 快捷入口契约缺失，跳过");
                 return;
             }
-            final Set<String> allowed = new HashSet<>(Arrays.asList(
-                    "READING_HISTORY", "READING_PREFERENCE", "BOOK_DOWNLOAD", "MY_MESSAGE", "MY_FOLLOW"));
             XposedBridge.hookMethod(quick, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
@@ -90,39 +87,15 @@ final class KmpMyPageHooks extends BaseHook {
                     try {
                         List<?> original = (List<?>) param.args[0];
                         List<Object> kept = new ArrayList<>();
-                        List<String> types = new ArrayList<>();
                         for (Object item : original) {
-                            if (item == null) {
-                                continue;
-                            }
-                            Field typeField = null;
-                            for (Field field : item.getClass().getDeclaredFields()) {
-                                if (!Modifier.isStatic(field.getModifiers()) && field.getType().isEnum()
-                                        && "com.dragon.read.component.biz.api.model.CardType".equals(field.getType().getName())) {
-                                    if (typeField != null) {
-                                        throw new IllegalStateException("CardType 字段不唯一");
-                                    }
-                                    typeField = field;
-                                }
-                            }
-                            if (typeField == null) {
-                                throw new IllegalStateException("CardType 字段缺失: " + item.getClass().getName());
-                            }
-                            typeField.setAccessible(true);
-                            Object value = typeField.get(item);
-                            if (!(value instanceof Enum<?>)) {
-                                throw new IllegalStateException("CardType 值不可识别");
-                            }
-                            String type = ((Enum<?>) value).name();
-                            types.add(type);
-                            if (allowed.contains(type)) {
+                            if (!MineItemFilter.card(item)) {
                                 kept.add(item);
                             }
                         }
                         if (kept.size() != original.size()) {
                             param.args[0] = kept;
                             XposedBridge.log("FQHook+KmpMine: 快捷入口 " + original.size() + "→" + kept.size()
-                                    + "，来源类型=" + types);
+                                    + "，按动态项目选择过滤");
                         }
                     } catch (Throwable throwable) {
                         HookUtils.logError("FQHook+KmpMine: 快捷类型识别失败，保留原列表: ", throwable);

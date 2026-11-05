@@ -1,11 +1,10 @@
 package com.fuck.fanqie.hooks;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.net.Uri;
 import android.view.View;
 
 import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.PluginSettings;
 import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Method;
@@ -26,7 +25,6 @@ public class FeatureHooks extends BaseHook {
     @Override
     public void apply() {
         applyAbtestHooks();
-        applySplashK1Hook();
         applyReaderBackHooks();
         applyPopProxyHooks();
         applyUpdateHooks();
@@ -34,6 +32,7 @@ public class FeatureHooks extends BaseHook {
     }
 
     public void applyAbtestHooks() {
+        if (!PluginSettings.enabled("ab")) return;
         try {
             Method method = cachedTargets.method(HookTargets.KEY_ABTEST_METHOD);
             if (method == null) {
@@ -51,42 +50,8 @@ public class FeatureHooks extends BaseHook {
         }
     }
 
-    public void applySplashK1Hook() {
-        try {
-            Method method = cachedTargets.method(HookTargets.KEY_SPLASH_K1_METHOD);
-            if (method == null) {
-                XposedBridge.log("FQHook+applySplashK1Hook: 未找到启动页跳转方法(K1)，跳过Hook");
-                return;
-            }
-
-            XposedBridge.hookMethod(method, new XC_MethodHook() {
-                @Override
-                protected void beforeHookedMethod(MethodHookParam param) {
-                    Intent intent = (Intent) param.args[0];
-                    if (intent == null) {
-                        return;
-                    }
-                    Uri data = intent.getData();
-                    String tabName = intent.getExtras() == null ? null : intent.getExtras().getString("tabName");
-                    if (data != null
-                            && "dragon1967".equals(data.getScheme())
-                            && "main".equals(data.getHost())
-                            && (tabName == null || "seriesmall".equals(tabName))) {
-                        intent.setClassName("com.dragon.read", "com.dragon.read.pages.main.MainFragmentActivity");
-                        intent.setData(Uri.parse("dragon1967://main?tabName=bookshelf"));
-                        intent.putExtra("tabName", "bookshelf");
-                        intent.putExtra("page_schema", "dragon1967://main?tabName=bookshelf");
-                        XposedBridge.log("FQHook+K1: 已修改为跳转书架 tab");
-                    }
-                }
-            });
-            XposedBridge.log("FQHook+applySplashK1Hook: 已Hook SplashActivity.K1");
-        } catch (Throwable throwable) {
-            HookUtils.logError("FQHook+applySplashK1Hook: Hook SplashActivity.K1 失败: ", throwable);
-        }
-    }
-
     public void applyReaderBackHooks() {
+        if (!PluginSettings.enabled("reader_back")) return;
         try {
             Class<?> readerActivityClass = XposedHelpers.findClass("com.dragon.read.reader.ui.ReaderActivity", hostClassLoader);
             XposedHelpers.findAndHookMethod(readerActivityClass, "onBackPressed", new XC_MethodHook() {
@@ -102,6 +67,7 @@ public class FeatureHooks extends BaseHook {
     }
 
     public void applyPopProxyHooks() {
+        if (!PluginSettings.enabled("popup")) return;
         try {
             Class<?> popProxyClass = XposedHelpers.findClass("com.dragon.read.pop.PopProxy", hostClassLoader);
             Class<?> propertiesClass = XposedHelpers.findClass("com.dragon.read.pop.IProperties", hostClassLoader);
@@ -158,6 +124,7 @@ public class FeatureHooks extends BaseHook {
     }
 
     public void applyUpdateHooks() {
+        if (!PluginSettings.enabled("update")) return;
         Method updateMethod = cachedTargets.method(HookTargets.KEY_UPDATE_METHOD);
         if (updateMethod == null) {
             XposedBridge.log("FQHook+HookApplier: 未找到更新消息处理方法，跳过Hook");
@@ -266,10 +233,10 @@ public class FeatureHooks extends BaseHook {
     }
 
     public void applyChapterControlHooks() {
-        applyCoverTitleRenderHooks();
-        applyKmpChapterControlHooks();
+        if (PluginSettings.enabled("cover_title")) applyCoverTitleRenderHooks();
+        if (PluginSettings.enabled("chapter")) applyKmpChapterControlHooks();
 
-        try {
+        if (PluginSettings.enabled("chapter")) try {
             Method authorSayMethod = cachedTargets.method(HookTargets.KEY_AUTHOR_SAY_METHOD);
             if (authorSayMethod != null) {
                 XposedBridge.hookMethod(authorSayMethod, XC_MethodReplacement.returnConstant(null));
@@ -279,7 +246,7 @@ public class FeatureHooks extends BaseHook {
             HookUtils.logError("FQHook+ChapterControl: 禁用作者说失败: ", throwable);
         }
 
-        try {
+        if (PluginSettings.enabled("cover_comment")) try {
             Method coverHotCommentMethod = cachedTargets.method(HookTargets.KEY_COVER_HOT_COMMENT_METHOD);
             if (coverHotCommentMethod == null) {
                 XposedBridge.log("FQHook+ChapterControl: 未找到封面热门评论方法，跳过Hook");
@@ -313,7 +280,7 @@ public class FeatureHooks extends BaseHook {
             HookUtils.logError("FQHook+ChapterControl: 禁用封面热门评论失败: ", throwable);
         }
 
-        try {
+        if (PluginSettings.enabled("chapter")) try {
             Method chapterEndHotCommentMethod = cachedTargets.method(HookTargets.KEY_CHAPTER_END_HOT_COMMENT_METHOD);
             if (chapterEndHotCommentMethod != null) {
                 Class<?> resultType = chapterEndHotCommentMethod.getReturnType();
@@ -332,7 +299,7 @@ public class FeatureHooks extends BaseHook {
             HookUtils.logError("FQHook+ChapterControl: 禁用章末热评失败: ", throwable);
         }
 
-        try {
+        if (PluginSettings.enabled("chapter")) try {
             Method chapterEndControlMethod = cachedTargets.method(HookTargets.KEY_CHAPTER_END_CONTROL_METHOD);
             if (chapterEndControlMethod == null) {
                 XposedBridge.log("FQHook+ChapterControl: 未找到章末控件方法，跳过Hook");

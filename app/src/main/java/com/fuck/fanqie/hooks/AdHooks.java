@@ -3,6 +3,7 @@ package com.fuck.fanqie.hooks;
 import android.view.View;
 
 import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.PluginSettings;
 import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Field;
@@ -33,6 +34,7 @@ public class AdHooks extends BaseHook {
     }
 
     public void applyAdHooks() {
+        if (!PluginSettings.enabled("ads")) return;
         try {
             Method adConfigMethod = cachedTargets.method(HookTargets.KEY_AD_CONFIG_METHOD);
             if (adConfigMethod != null) {
@@ -106,12 +108,28 @@ public class AdHooks extends BaseHook {
     public void applyLuckyDogHooks() {
         Method luckyDogMethod = cachedTargets.method(HookTargets.KEY_LUCKY_DOG_METHOD);
         if (luckyDogMethod != null) {
-            XposedBridge.hookMethod(luckyDogMethod, XC_MethodReplacement.returnConstant(Boolean.FALSE));
-            XposedBridge.log("FQHook+applyHooks: 已禁用LuckyDog福利");
+            XposedBridge.hookMethod(luckyDogMethod, new XC_MethodHook() {
+                private Boolean loggedDisabled;
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (com.fuck.fanqie.NavigationSettings.disableWelfare()) param.setResult(Boolean.FALSE);
+                }
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    if (param.hasThrowable()) return;
+                    boolean disabled = com.fuck.fanqie.NavigationSettings.disableWelfare();
+                    if (loggedDisabled == null || loggedDisabled != disabled) {
+                        loggedDisabled = disabled;
+                        XposedBridge.log("FQHook+Welfare: 赚钱隐藏禁用=" + disabled
+                                + "，门禁结果=" + param.getResult()
+                                + (disabled ? "（插件禁用）" : "（宿主原判断）"));
+                    }
+                }
+            });
+            XposedBridge.log("FQHook+Welfare: 已安装赚钱显示状态联动门禁");
         }
     }
 
     public void applyHideBookshelfRelateVideoBannerHooks() {
+        if (!PluginSettings.enabled("banner")) return;
         for (String key : new String[]{HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD,
                 HookTargets.KEY_BOOKSHELF_BANNER_LIST_METHOD, HookTargets.KEY_BOOKSHELF_BANNER_FIRST_METHOD}) {
             applyBookshelfBannerConsumer(key);
@@ -210,6 +228,7 @@ public class AdHooks extends BaseHook {
     }
 
     public void applyFloatingViewHooks() {
+        if (!PluginSettings.enabled("popup")) return;
         Method popMethod = cachedTargets.method(HookTargets.KEY_POP_METHOD);
         if (popMethod != null) {
             XposedBridge.hookMethod(popMethod, XC_MethodReplacement.returnConstant(Boolean.TRUE));
@@ -229,6 +248,7 @@ public class AdHooks extends BaseHook {
     }
 
     public void applyClickAgentHooks() {
+        if (!PluginSettings.enabled("report_behavior")) return;
         try {
             XposedHelpers.findAndHookMethod(
                     "com.bytedance.apm.agent.v2.instrumentation.ClickAgent",

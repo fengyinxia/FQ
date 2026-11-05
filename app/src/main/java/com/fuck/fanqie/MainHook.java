@@ -45,15 +45,21 @@ public class MainHook implements IXposedHookLoadPackage {
 
         String processName = loadPackageParam.processName;
         if (processName != null && processName.endsWith(":push")) {
-            String applicationClass = loadPackageParam.appInfo == null
-                    ? "Unknown"
-                    : loadPackageParam.appInfo.className;
-            log("检测到推送进程: " + processName + ", Application类: " + applicationClass + ", 执行强制终止");
-            try {
-                Process.killProcess(Process.myPid());
-                System.exit(0);
-            } catch (Throwable ignored) {
-            }
+            XposedHelpers.findAndHookMethod(ContextWrapper.class, "attachBaseContext", Context.class,
+                    new XC_MethodHook() {
+                        @Override protected void afterHookedMethod(MethodHookParam param) {
+                            if (!(param.thisObject instanceof Application)) return;
+                            try {
+                                PluginSettings.initialize((Context) param.args[0], false);
+                                if (PluginSettings.enabled("push")) {
+                                    log("按配置终止推送进程");
+                                    Process.killProcess(Process.myPid());
+                                }
+                            } catch (Throwable throwable) {
+                                log("推送配置读取失败，保留宿主进程: " + throwable);
+                            }
+                        }
+                    });
             return;
         }
 
@@ -85,6 +91,8 @@ public class MainHook implements IXposedHookLoadPackage {
         isInitialized = true;
 
         try {
+            PluginSettings.initialize(context);
+            log("已加载本次运行配置；设置修改在重启后生效");
             hostClassLoader = context.getClassLoader();
             String packageCodePath = context.getPackageCodePath();
 
@@ -126,10 +134,7 @@ public class MainHook implements IXposedHookLoadPackage {
     private long getAppVersionCode(Context context) {
         try {
             PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            if (android.os.Build.VERSION.SDK_INT >= 28) {
-                return PackageInfoCompat.getLongVersionCode(packageInfo);
-            }
-            return packageInfo.versionCode;
+            return packageInfo.getLongVersionCode();
         } catch (Throwable throwable) {
             log("获取应用版本失败: " + throwable);
             return -1L;

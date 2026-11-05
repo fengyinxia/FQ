@@ -9,3 +9,13 @@
 
 # 项目规则文件仅本地使用
 /AGENTS.md
+
+# 构建产物与本地工作区
+.gradle/
+.trash/
+.work/
+app/build/
+
+# 宿主 APK 样本与根目录杂散 APK
+/samples/
+/*.apk

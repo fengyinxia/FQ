@@ -42,6 +42,7 @@ public final class HookTargets {
     public static final String KEY_RECOMMEND_KMP_PARSE_METHOD = "method_recommend_kmp_parse";
     public static final String KEY_LUCKY_DOG_METHOD = "method_lucky_dog";
     public static final String KEY_MAIN_ACTIVITY_ON_CREATE_METHOD = "method_main_activity_on_create";
+    public static final String KEY_MAIN_HOME_TARGET_METHOD = "method_main_home_target";
     public static final String KEY_MY_PAGE_CONTENT_METHOD = "method_my_page_content";
     public static final String KEY_MY_PAGE_RECOMMEND_ENABLE_METHOD = "method_my_page_recommend_enable";
     public static final String KEY_MY_PAGE_SEARCH_BAR_METHOD = "method_my_page_search_bar";
@@ -50,6 +51,10 @@ public final class HookTargets {
     public static final String KEY_POP_METHOD = "method_pop";
     public static final String KEY_RED_DOT_METHOD = "method_red_dot";
     public static final String KEY_READER_DIRECTORY_PRELOAD_CLASS = "class_reader_directory_preload";
+    public static final String KEY_SETTINGS_NATIVE_INSERT_METHOD = "method_settings_native_insert";
+    public static final String KEY_SETTINGS_KMP_INSERT_METHOD = "method_settings_kmp_insert";
+    public static final String KEY_SETTINGS_ITEM_CLASS = "class_settings_item";
+    public static final String KEY_SETTINGS_PAGE_CREATE_METHOD = "method_settings_page_create";
     public static final String KEY_SEARCH_BAR_METHOD = "method_search_bar";
     public static final String KEY_SEARCH_CUE_LIST_METHOD = "method_search_cue_list";
     public static final String KEY_SEARCH_CUE_KMP_LIST_METHOD = "method_search_cue_kmp_list";
@@ -102,6 +107,7 @@ public final class HookTargets {
             KEY_RECOMMEND_KMP_PARSE_METHOD,
             KEY_LUCKY_DOG_METHOD,
             KEY_MAIN_ACTIVITY_ON_CREATE_METHOD,
+            KEY_MAIN_HOME_TARGET_METHOD,
             KEY_MY_PAGE_CONTENT_METHOD,
             KEY_MY_PAGE_RECOMMEND_ENABLE_METHOD,
             KEY_MY_PAGE_SEARCH_BAR_METHOD,
@@ -110,6 +116,10 @@ public final class HookTargets {
             KEY_POP_METHOD,
             KEY_RED_DOT_METHOD,
             KEY_READER_DIRECTORY_PRELOAD_CLASS,
+            KEY_SETTINGS_NATIVE_INSERT_METHOD,
+            KEY_SETTINGS_KMP_INSERT_METHOD,
+            KEY_SETTINGS_ITEM_CLASS,
+            KEY_SETTINGS_PAGE_CREATE_METHOD,
             KEY_SEARCH_BAR_METHOD,
             KEY_SEARCH_CUE_LIST_METHOD,
             KEY_SEARCH_CUE_KMP_LIST_METHOD,

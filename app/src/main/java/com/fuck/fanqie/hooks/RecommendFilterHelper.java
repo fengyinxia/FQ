@@ -1,10 +1,14 @@
 package com.fuck.fanqie.hooks;
 
+import com.fuck.fanqie.PluginSettings;
+import com.fuck.fanqie.DynamicItems;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 
 import de.robv.android.xposed.XposedBridge;
 
@@ -17,50 +21,68 @@ final class RecommendFilterHelper {
         this.hostClassLoader = hostClassLoader;
     }
 
-    String getFilterReason(Object cellViewData, Set<String> allowedGroupTypes) {
+    String getFilterReason(Object cellViewData, boolean knownRecommendScene) {
         String showType = resolveName(readField(cellViewData, "showType"));
-        if (readField(cellViewData, "bookHungerData") != null
-                || (showType != null && showType.contains("BookHunger"))) {
-            return "bookHunger/showType=" + showType;
-        }
-        if (showType != null && (showType.startsWith("Listen") || showType.startsWith("Audio")
-                || showType.startsWith("FmUnlimited"))) {
-            return "audioShowType=" + showType;
-        }
         String groupType = resolveGroupTypeName(cellViewData);
-        if ("ShuhuangEntrance".equals(groupType)) {
-            return "bookHungerGroup=" + groupType;
+        // 只在实际收到类型后加入目录。固定映射仅作显示和明确旧规则迁移。
+        if (readField(cellViewData, "bookHungerData") != null
+                || (showType != null && showType.contains("BookHunger"))
+                || "ShuhuangEntrance".equals(groupType)) {
+            return dynamic("kind/book_hunger", "书荒入口", PluginSettings.enabled("rec_hunger"));
         }
-        if ("Audio".equals(groupType) || "BatchAudio".equals(groupType)) {
-            return "audioGroup=" + groupType;
+        if ((showType != null && (showType.startsWith("Listen") || showType.startsWith("Audio")
+                || showType.startsWith("FmUnlimited")))
+                || "Audio".equals(groupType) || "BatchAudio".equals(groupType)
+                || isAudioLikeCell(cellViewData)) {
+            return dynamic("kind/audio", "听书内容", PluginSettings.enabled("rec_audio"));
         }
-        if (allowedGroupTypes != null && groupType != null && !allowedGroupTypes.contains(groupType)) {
-            return "groupType=" + groupType;
+        if (containsType(groupType, "VideoSeries") || containsType(showType, "VideoSeries")) {
+            return dynamic("kind/video_series", "短剧内容", PluginSettings.enabled("rec_video"));
         }
-        if (isAudioLikeCell(cellViewData)) {
-            return "audioLike=" + groupType;
+        if (containsType(groupType, "Comic") || containsType(showType, "Comic")) {
+            return dynamic("kind/comic", "漫画与漫剧卡片", PluginSettings.enabled("rec_comic"));
+        }
+        // 只有明确推荐场景才采集普通类型，场景未知的桥接入口不扩展过滤范围。
+        if (knownRecommendScene && (groupType != null || showType != null)) {
+            String id = groupType != null ? "group/" + groupType : "show/" + showType;
+            return dynamic(id, groupType != null ? groupType : showType, false);
         }
         return null;
     }
 
-    String filterTree(Object cell, Set<String> allowed) {
-        return filterTree(cell, allowed, Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>()), 0);
+    private static String dynamic(String id, String label, boolean legacyBlocked) {
+        return DynamicItems.observe(DynamicItems.RECOMMEND, id, label, legacyBlocked) ? id : null;
     }
 
-    private String filterTree(Object cell, Set<String> allowed, Set<Object> visited, int depth) {
-        if (cell == null || depth > 8 || !visited.add(cell)) {
-            return null;
-        }
-        String explicit = getFilterReason(cell, null);
-        if (explicit != null) {
-            return explicit;
-        }
+    private static boolean containsType(String value, String type) {
+        return value != null && value.contains(type);
+    }
+
+    String filterTree(Object cell, boolean knownRecommendScene) {
+        return filterTree(cell, knownRecommendScene, Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>()),
+                new IdentityHashMap<Object, String>(), 0);
+    }
+
+    private String filterTree(Object cell, boolean knownRecommendScene, Set<Object> active,
+                              Map<Object, String> decisions, int depth) {
+        if (cell == null) return null;
+        if (decisions.containsKey(cell)) return decisions.get(cell);
+        if (depth > 8 || !active.add(cell)) return null; // 仅当前递归路径防环，不把重复引用当放行。
+        try {
+            String result = filterNode(cell, knownRecommendScene, active, decisions, depth);
+            decisions.put(cell, result);
+            return result;
+        } finally { active.remove(cell); }
+    }
+
+    private String filterNode(Object cell, boolean knownRecommendScene, Set<Object> active,
+                              Map<Object, String> decisions, int depth) {
         Object nested = readField(cell, "cellData");
         if (nested instanceof List<?> && !((List<?>) nested).isEmpty()) {
             List<?> original = (List<?>) nested;
             List<Object> kept = new ArrayList<>();
             for (Object child : original) {
-                String reason = filterTree(child, allowed, visited, depth + 1);
+                String reason = filterTree(child, knownRecommendScene, active, decisions, depth + 1);
                 if (reason == null) {
                     kept.add(child);
                 } else {
@@ -76,7 +98,7 @@ final class RecommendFilterHelper {
             // 混合流/分页容器本身不套用叶子 group 白名单，避免连同小说整段删除。
             return null;
         }
-        return getFilterReason(cell, allowed);
+        return getFilterReason(cell, knownRecommendScene);
     }
 
     String describe(Object cell) {

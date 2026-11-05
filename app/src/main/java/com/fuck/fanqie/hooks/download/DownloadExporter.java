@@ -3,12 +3,12 @@ package com.fuck.fanqie.hooks.download;
 import android.app.Application;
 import android.content.ContentValues;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -74,32 +74,21 @@ public final class DownloadExporter {
                 return null;
             }
             File outputFile = new File(exportDir, fileName);
-            OutputStreamWriter writer = null;
-            try {
-                writer = new OutputStreamWriter(new FileOutputStream(outputFile, false), StandardCharsets.UTF_8);
+            try (OutputStreamWriter writer = new OutputStreamWriter(
+                    new FileOutputStream(outputFile, false), StandardCharsets.UTF_8)) {
                 writer.write(content);
-                writer.flush();
-            } finally {
-                if (writer != null) {
-                    try {
-                        writer.close();
-                    } catch (Throwable ignored) {
-                    }
-                }
             }
             return outputFile;
-        } catch (Throwable throwable) {
+        } catch (IOException | RuntimeException throwable) {
             logger.log("DownloadHooks: 直写 Download/FQ 失败, error=" + throwable.getClass().getSimpleName());
             return null;
         }
     }
 
     private String writeExportTextToMediaStore(Application application, String fileName, String content, Logger logger) {
-        if (application == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        if (application == null) {
             return null;
         }
-        OutputStream outputStream = null;
-        OutputStreamWriter writer = null;
         Uri uri = null;
         String relativePath = Environment.DIRECTORY_DOWNLOADS + "/FQ/";
         try {
@@ -112,39 +101,26 @@ public final class DownloadExporter {
             if (uri == null) {
                 return null;
             }
-            outputStream = application.getContentResolver().openOutputStream(uri, "w");
-            if (outputStream == null) {
-                return null;
+            OutputStream outputStream = application.getContentResolver().openOutputStream(uri, "w");
+            if (outputStream == null) throw new IOException("MediaStore 未返回输出流");
+            try (OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {
+                writer.write(content);
             }
-            writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
-            writer.write(content);
-            writer.flush();
 
             ContentValues finishValues = new ContentValues();
             finishValues.put(MediaStore.Downloads.IS_PENDING, 0);
             application.getContentResolver().update(uri, finishValues, null, null);
             return "/storage/emulated/0/" + relativePath + fileName;
-        } catch (Throwable throwable) {
+        } catch (IOException | RuntimeException throwable) {
             logger.log("DownloadHooks: MediaStore 写入 Download/FQ 失败, error=" + throwable.getClass().getSimpleName());
             if (uri != null) {
                 try {
                     application.getContentResolver().delete(uri, null, null);
-                } catch (Throwable ignored) {
+                } catch (RuntimeException cleanupError) {
+                    logger.log("DownloadHooks: 清理未完成导出失败, error=" + cleanupError.getClass().getSimpleName());
                 }
             }
             return null;
-        } finally {
-            if (writer != null) {
-                try {
-                    writer.close();
-                } catch (Throwable ignored) {
-                }
-            } else if (outputStream != null) {
-                try {
-                    outputStream.close();
-                } catch (Throwable ignored) {
-                }
-            }
         }
     }
 
@@ -154,7 +130,7 @@ public final class DownloadExporter {
         }
         try {
             return Integer.parseInt(order);
-        } catch (Throwable ignored) {
+        } catch (NumberFormatException ignored) {
             return Integer.MAX_VALUE;
         }
     }

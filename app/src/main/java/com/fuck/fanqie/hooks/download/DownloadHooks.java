@@ -5,6 +5,7 @@ import android.content.Context;
 import android.util.Log;
 
 import com.fuck.fanqie.HookTargets;
+import com.fuck.fanqie.PluginSettings;
 import com.fuck.fanqie.cache.CachedTargets;
 import com.fuck.fanqie.hooks.BaseHook;
 import com.fuck.fanqie.hooks.HookUtils;
@@ -41,6 +42,7 @@ public class DownloadHooks extends BaseHook {
 
     @Override
     public void apply() {
+        if (!PluginSettings.enabled("download")) return;
         applyDownloadModeHook();
         applyChapterInfoHook();
         applyDecryptedContentHook();

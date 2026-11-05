@@ -1,6 +1,7 @@
 package com.fuck.fanqie.hooks;
 
 import org.json.JSONObject;
+import com.fuck.fanqie.PluginSettings;
 
 import java.util.Map;
 
@@ -23,6 +24,7 @@ public class FrameworkHooks extends BaseHook {
     }
 
     public void applyForestUtilsHooks() {
+        if (!PluginSettings.enabled("forest")) return;
         try {
             Class<?> threadUtilsClass = XposedHelpers.findClass("com.bytedance.forest.utils.ThreadUtils", hostClassLoader);
             XC_MethodReplacement replacement = XC_MethodReplacement.returnConstant(null);
@@ -40,6 +42,7 @@ public class FrameworkHooks extends BaseHook {
     }
 
     public void applyReportManagerHooks() {
+        if (!PluginSettings.enabled("report_behavior")) return;
         try {
             Class<?> reportManagerClass = XposedHelpers.findClass("com.dragon.read.report.ReportManager", hostClassLoader);
             Class<?> argsClass = XposedHelpers.findClass("com.dragon.read.base.Args", hostClassLoader);
@@ -58,6 +61,7 @@ public class FrameworkHooks extends BaseHook {
     }
 
     public void applyNpthHooks() {
+        if (!PluginSettings.enabled("report_crash")) return;
         try {
             Class<?> npthClass = XposedHelpers.findClass("com.bytedance.crash.Npth", hostClassLoader);
             XC_MethodReplacement replacement = XC_MethodReplacement.returnConstant(null);

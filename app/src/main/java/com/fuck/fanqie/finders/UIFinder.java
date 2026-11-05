@@ -41,13 +41,74 @@ public class UIFinder extends BaseFinder {
         findMyPageViewTargets(bridge);
         findKmpMyPageTargets(bridge);
         findCategoryTabTargets(bridge);
+        findSettingsEntryTargets(bridge);
         findSearchCueListMethod(bridge, HookTargets.KEY_SEARCH_CUE_LIST_METHOD,
                 "com.dragon.read.component.biz.impl.bookmall.search.SearchWordDisplayView");
         findSearchCueListMethod(bridge, HookTargets.KEY_SEARCH_CUE_KMP_LIST_METHOD,
                 "com.dragon.read.kmp.bookmall.search.SearchWordDisplayViewKMP");
     }
 
+    private void findSettingsEntryTargets(DexKitBridge bridge) {
+        try {
+            cacheUniqueMethod(HookTargets.KEY_SETTINGS_PAGE_CREATE_METHOD,
+                    bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.component.biz.impl.mine.settings.SettingsActivity")
+                            .name("onCreate").paramTypes("android.os.Bundle").returnType(Void.TYPE)
+                            .addUsingString("settings_preload")
+                            .addInvoke("Landroidx/recyclerview/widget/RecyclerView;->setAdapter(Landroidx/recyclerview/widget/RecyclerView$Adapter;)V"))));
+        } catch (Throwable throwable) {
+            log("查找插件设置页面承载入口失败", throwable);
+        }
+        try {
+            List<MethodData> landing = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().name("<init>")
+                            .paramTypes("com.dragon.read.base.AbsActivity")
+                            .addUsingString("setting_feed_landing_category")
+                            .addUsingString("默认启动页面")));
+            if (landing.size() != 1) {
+                log("设置锚点模型不唯一，候选数=" + landing.size());
+                return;
+            }
+            // 通用设置项是锚点构造器直接调用的唯一无参父构造器，不写死混淆类名。
+            List<MethodData> bases = new ArrayList<>();
+            for (MethodData call : landing.get(0).getInvokes()) {
+                if ("<init>".equals(call.getName()) && call.getParamTypeNames().isEmpty()
+                        && !"java.lang.Object".equals(call.getDeclaredClassName())) {
+                    bases.add(call);
+                }
+            }
+            if (bases.size() != 1) {
+                log("通用设置项父构造器不唯一，候选数=" + bases.size());
+                return;
+            }
+            cacheClass(HookTargets.KEY_SETTINGS_ITEM_CLASS, bases.get(0).getDeclaredClass());
+            String constructor = landing.get(0).getDescriptor();
+            cacheUniqueMethod(HookTargets.KEY_SETTINGS_NATIVE_INSERT_METHOD,
+                    bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.component.biz.impl.mine.settings.SettingsActivity")
+                            .paramTypes("java.util.List", "java.util.List").returnType(Void.TYPE)
+                            .addUsingString("addLandingSelectItemIfNeeded: invalid list state")
+                            .addInvoke(constructor))));
+            cacheUniqueMethod(HookTargets.KEY_SETTINGS_KMP_INSERT_METHOD,
+                    bridge.findMethod(FindMethod.create()
+                            .matcher(MethodMatcher.create()
+                                    .paramTypes("java.util.LinkedList", "java.util.ArrayList")
+                                    .returnType(Void.TYPE).addInvoke(constructor))));
+        } catch (Throwable throwable) {
+            log("查找插件设置入口目标失败", throwable);
+        }
+    }
+
     private void findCategoryTabTargets(DexKitBridge bridge) {
+        try {
+            cacheUniqueMethod(HookTargets.KEY_MAIN_HOME_TARGET_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.pages.main.MainFragmentActivity")
+                            .paramCount(0).returnType("com.dragon.read.rpc.model.BottomTabBarItemType")
+                            .usingStrings(new String[]{"getTargetTabType: tabName %s, index %d", "key_default_tab"}))));
+        } catch (Throwable throwable) {
+            log("查找主页目标路由失败", throwable);
+        }
         try {
             List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(
                     MethodMatcher.create()

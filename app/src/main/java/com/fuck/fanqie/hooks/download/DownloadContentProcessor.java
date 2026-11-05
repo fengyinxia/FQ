@@ -1,6 +1,5 @@
 package com.fuck.fanqie.hooks.download;
 
-import android.os.Build;
 import android.text.Html;
 
 import com.fuck.fanqie.HookTargets;
@@ -157,9 +156,7 @@ public final class DownloadContentProcessor {
         String body = decryptedContent.substring(start, end);
         body = body.replaceAll("(?is)<script\\b[^>]*>.*?</script\\s*>", "")
                 .replaceAll("(?is)<style\\b[^>]*>.*?</style\\s*>", "");
-        String text = Build.VERSION.SDK_INT >= 24
-                ? Html.fromHtml(body, Html.FROM_HTML_MODE_COMPACT).toString()
-                : Html.fromHtml(body).toString();
+        String text = Html.fromHtml(body, Html.FROM_HTML_MODE_COMPACT).toString();
         String lineBreak = System.lineSeparator();
         text = text.replace('\u00a0', ' ').replaceAll("[ \\t]+\\n", lineBreak)
                 .replaceAll("\\n{3,}", lineBreak + lineBreak).trim();

@@ -14,7 +14,7 @@ FuckTomato 是一个面向番茄免费小说 `com.dragon.read` 的 Xposed 模块
 
 ## 适用环境
 
-- Android 6.0（API 23）及以上设备或模拟器，已安装可用的 Xposed / LSPosed 环境。
+- Android 10（API 29）及以上设备或模拟器，已安装可用的 Xposed / LSPosed 环境。
 - 目标宿主：番茄免费小说 `com.dragon.read`，当前以 **官网 7.3.9.32** 为适配基线，不保证旧版或其他渠道兼容。
 - 模块包含 `armeabi-v7a` / `arm64-v8a` 的 DexKit 原生库；宿主进程位数与模块库必须匹配。
 - 构建环境：JDK 17+、Gradle Wrapper、Android SDK（compileSdk 33）。配置 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 或 `local.properties` 的 `sdk.dir`。
@@ -83,7 +83,7 @@ app/src/main/java/com/fuck/fanqie/
 /storage/emulated/0/Download/FQ/<书名>.txt
 ```
 
-实现上优先直接写入公共下载目录的 `FQ` 文件夹；直写失败时，Android 10 及以上回退 MediaStore 写入同一目录。EPUB XHTML 内容会经过标签、段落和实体转换。
+实现上优先直接写入公共下载目录的 `FQ` 文件夹；直写失败时回退 MediaStore 写入同一目录。EPUB XHTML 内容会经过标签、段落和实体转换。
 
 ## 注意事项
 
