@@ -9,6 +9,7 @@ import android.view.ViewTreeObserver;
 import com.fuck.fanqie.HookTargets;
 import com.fuck.fanqie.cache.CachedTargets;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class UIHooks extends BaseHook {
     private final CachedTargets cachedTargets;
     private final RecommendFilterHelper recommendFilterHelper;
     private final SearchCueWordFilter searchCueWordFilter = new SearchCueWordFilter();
+    private final ThreadLocal<Integer> myPageCreationDepth = new ThreadLocal<>();
 
     public UIHooks(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
         super(hostClassLoader);
@@ -48,6 +50,7 @@ public class UIHooks extends BaseHook {
         applyMyPageSearchHooks();
         applyDisableMyPageRecommendHooks();
         applyMyPageWalletHooks();
+        new KmpMyPageHooks(cachedTargets, hostClassLoader).apply();
         applyCustomVipHooks();
         applySearchWordHooks();
         applySearchBarHooks();
@@ -61,6 +64,7 @@ public class UIHooks extends BaseHook {
                 XposedBridge.log("FQHook+MyPageWallet: 未找到兼容的我的页内容创建入口，跳过");
                 return;
             }
+            installWalletComponentHook();
             final Method settingsClick = cachedTargets.method(HookTargets.KEY_MY_PAGE_SETTINGS_CLICK_METHOD);
             XposedBridge.hookMethod(method, new XC_MethodHook() {
                 @Override
@@ -69,27 +73,21 @@ public class UIHooks extends BaseHook {
                         return;
                     }
                     final View root = (View) param.getResult();
-                    // 7.3.9.32：feq 包含钱包行 he1 和福利领取 gos，整卡隐藏才不会残留福利。
-                    final int[] ids = resolveMyPageIds(root, "feq", "he1", "frc", "fr5", "gou", "gos");
-                    // 复用菜单按钮的位置，绑定原生设置回调；不能显示与夜间按钮重叠的备用 f05。
-                    final int[] headerIds = resolveMyPageIds(root, "f0l", "f05");
+                    // 仅在当前页面内按稳定图标识别两个按钮，不读混淆资源名。
+                    final View[] header = MyPageViews.findHeader(root);
                     final View.OnClickListener settingsListener = createMyPageSettingsListener(settingsClick, param.thisObject);
                     final int settingsIcon = root.getResources().getIdentifier(
                             "skin_mine_icon_setting_new_light", "drawable", "com.dragon.read");
                     if (settingsIcon == 0) {
                         XposedBridge.log("FQHook+MyPageHeader: 原生设置图标不存在，保留原菜单入口");
                     }
-                    if (!hideMyPageWallet(root, ids)) {
-                        XposedBridge.log("FQHook+MyPageWallet: 钱包福利卡尚未出现或结构不匹配，等待后续布局");
-                    }
-                    if (replaceMyPageMenuWithSettings(root, headerIds, settingsListener, settingsIcon)) {
+                    if (replaceMyPageMenuWithSettings(header, settingsListener, settingsIcon)) {
                         XposedBridge.log("FQHook+MyPageHeader: 已在原侧栏菜单位置替换设置图标与点击行为");
                     }
                     root.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
                         @Override
                         public void onGlobalLayout() {
-                            hideMyPageWallet(root, ids);
-                            replaceMyPageMenuWithSettings(root, headerIds, settingsListener, settingsIcon);
+                            replaceMyPageMenuWithSettings(header, settingsListener, settingsIcon);
                         }
                     });
                 }
@@ -100,41 +98,63 @@ public class UIHooks extends BaseHook {
         }
     }
 
-    private static int[] resolveMyPageIds(View root, String... names) {
-        int[] ids = new int[names.length];
-        for (int i = 0; i < names.length; i++) {
-            ids[i] = root.getResources().getIdentifier(names[i], "id", "com.dragon.read");
-            if (ids[i] == 0) {
-                XposedBridge.log("FQHook+MyPageWallet: 资源 id/" + names[i] + " 不存在，跳过对应区域");
+    private void installWalletComponentHook() {
+        Class<?> walletClass = cachedTargets.type(HookTargets.KEY_MY_PAGE_WALLET_CLASS);
+        if (walletClass == null) {
+            XposedBridge.log("FQHook+MyPageWallet: 钱包卡组件缺失，跳过隐藏");
+            return;
+        }
+        Field candidate = null;
+        for (Field field : walletClass.getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) && field.getType() == View.class) {
+                if (candidate != null) {
+                    XposedBridge.log("FQHook+MyPageWallet: 钱包根 View 字段不唯一，跳过");
+                    return;
+                }
+                candidate = field;
             }
         }
-        return ids;
-    }
-
-    private static boolean hideMyPageWallet(View root, int[] ids) {
-        for (int id : ids) {
-            if (id == 0) {
-                return false;
+        if (candidate == null) {
+            XposedBridge.log("FQHook+MyPageWallet: 钱包组件没有根 View 字段，跳过");
+            return;
+        }
+        final Field rootField = candidate;
+        rootField.setAccessible(true);
+        final java.util.Set<View> observed = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<View, Boolean>());
+        XposedBridge.hookAllConstructors(walletClass, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                boolean mine = false;
+                for (Object arg : param.args) {
+                    if (arg != null && ("com.dragon.read.component.biz.impl.mine.FanqieMineFragmentV2".equals(arg.getClass().getName())
+                            || "com.dragon.read.component.biz.impl.mine.KmpFanqieMineFragment".equals(arg.getClass().getName()))) {
+                        mine = true;
+                    }
+                }
+                if (!mine || param.hasThrowable()) {
+                    return;
+                }
+                try {
+                    Object value = rootField.get(param.thisObject);
+                    if (!(value instanceof ViewGroup) || !observed.add((View) value)) {
+                        return;
+                    }
+                    final View wallet = (View) value;
+                    wallet.setVisibility(View.GONE);
+                    wallet.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+                        @Override
+                        public void onGlobalLayout() {
+                            if (wallet.getVisibility() != View.GONE) {
+                                wallet.setVisibility(View.GONE);
+                            }
+                        }
+                    });
+                    XposedBridge.log("FQHook+MyPageWallet: 已隐藏我的页钱包福利组件整卡");
+                } catch (Throwable throwable) {
+                    HookUtils.logError("FQHook+MyPageWallet: 钱包根 View 读取失败，保留原行为: ", throwable);
+                }
             }
-        }
-        View wallet = root.findViewById(ids[0]);
-        if (!(wallet instanceof ViewGroup)) {
-            return false;
-        }
-        View row = wallet.findViewById(ids[1]);
-        if (!(row instanceof ViewGroup) || !(wallet.findViewById(ids[5]) instanceof ViewGroup)) {
-            return false;
-        }
-        for (int i = 2; i < 5; i++) {
-            if (row.findViewById(ids[i]) == null) {
-                return false;
-            }
-        }
-        if (wallet.getVisibility() != View.GONE) {
-            wallet.setVisibility(View.GONE);
-            XposedBridge.log("FQHook+MyPageWallet: 已隐藏金币余额提现及福利领取整卡 (id/feq)");
-        }
-        return true;
+        });
     }
 
     private static View.OnClickListener createMyPageSettingsListener(Method method, Object fragment) {
@@ -151,17 +171,17 @@ public class UIHooks extends BaseHook {
         }
     }
 
-    private static boolean replaceMyPageMenuWithSettings(View root, int[] ids,
+    private static boolean replaceMyPageMenuWithSettings(View[] header,
             View.OnClickListener listener, int iconId) {
-        if (listener == null || iconId == 0 || ids[0] == 0 || ids[1] == 0) {
+        if (listener == null || iconId == 0 || header == null) {
             return false;
         }
-        View menu = root.findViewById(ids[0]);
-        View settings = root.findViewById(ids[1]);
+        View menu = header[0];
+        View settings = header[1];
         if (!(menu instanceof android.widget.ImageView) || !(settings instanceof android.widget.ImageView)) {
             return false;
         }
-        // 保留 f0l 原有布局参数和坐标；只替换图标及回调，f05 仍保留原生隐藏占位。
+        // 保留菜单原布局参数和坐标；备用设置按钮仍为隐藏占位。
         menu.setOnClickListener(listener);
         ((android.widget.ImageView) menu).setImageResource(iconId);
         settings.setVisibility(View.INVISIBLE);
@@ -337,28 +357,45 @@ public class UIHooks extends BaseHook {
         }
         try {
             if (isPageContentFactory(method)) {
-                // 7.3.9.32 的搜索入口是我的页头部 id/g64 的 ComposeView，
-                // 不能替换整页 onCreateContent：保留原结果，只隐藏这个具体控件。
+                Method factory = cachedTargets.method(HookTargets.KEY_MY_PAGE_SEARCH_FACTORY_METHOD);
+                if (factory == null || !View.class.isAssignableFrom(factory.getReturnType())) {
+                    XposedBridge.log("FQHook+MyPageSearch: 搜索 View 工厂缺失，保留页面");
+                    return;
+                }
+                // 动态作用域限定本页同步创建，不能影响书城复用的搜索工厂。
                 XposedBridge.hookMethod(method, new XC_MethodHook() {
                     @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        Integer depth = myPageCreationDepth.get();
+                        myPageCreationDepth.set(depth == null ? 1 : depth + 1);
+                    }
+                    @Override
                     protected void afterHookedMethod(MethodHookParam param) {
-                        Object result = param.getResult();
-                        if (!(result instanceof View)) {
+                        Integer depth = myPageCreationDepth.get();
+                        if (depth == null || depth <= 1) {
+                            myPageCreationDepth.remove();
+                        } else {
+                            myPageCreationDepth.set(depth - 1);
+                        }
+                    }
+                });
+                XposedBridge.hookMethod(factory, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        if (myPageCreationDepth.get() == null || !(param.getResult() instanceof View)) {
                             return;
                         }
-                        final View root = (View) result;
-                        final int searchId = root.getResources().getIdentifier("g64", "id", "com.dragon.read");
-                        if (searchId == 0) {
-                            XposedBridge.log("FQHook+MyPageSearch: 我的页搜索控件 id/g64 不存在，跳过隐藏");
-                            return;
-                        }
-                        hideMyPageSearch(root, searchId);
-                        root.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+                        final View search = (View) param.getResult();
+                        search.setVisibility(View.INVISIBLE);
+                        search.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
                             @Override
                             public void onGlobalLayout() {
-                                hideMyPageSearch(root, searchId);
+                                if (search.getVisibility() != View.INVISIBLE) {
+                                    search.setVisibility(View.INVISIBLE);
+                                }
                             }
                         });
+                        XposedBridge.log("FQHook+MyPageSearch: 已捕获并隐藏我的页搜索 View，保留占位");
                     }
                 });
                 XposedBridge.log("FQHook+MyPageSearch: 已安装我的页搜索控件局部隐藏 Hook");
@@ -385,16 +422,6 @@ public class UIHooks extends BaseHook {
                 && paramTypes[0] == LayoutInflater.class
                 && paramTypes[1] == ViewGroup.class
                 && paramTypes[2] == Bundle.class;
-    }
-
-    /** 隐藏搜索入口但保留占位，避免头部扫描和夜间模式按钮重新排版。 */
-    private static void hideMyPageSearch(View root, int searchId) {
-        View search = root.findViewById(searchId);
-        if (search != null && search.getClass().getName().contains("ComposeView")
-                && search.getVisibility() != View.INVISIBLE) {
-            search.setVisibility(View.INVISIBLE);
-            XposedBridge.log("FQHook+MyPageSearch: 已隐藏我的页搜索入口并保留占位 (id/g64)");
-        }
     }
 
     public void applyRedDotHooks() {
@@ -483,6 +510,16 @@ public class UIHooks extends BaseHook {
                 XposedBridge.log("FQHook+RemoveCard: 未找到兼容的快捷功能聚合方法，跳过");
                 return;
             }
+            final Set<Class<?>> allowed = new HashSet<>();
+            for (String key : new String[]{HookTargets.KEY_QUICK_HISTORY_CLASS, HookTargets.KEY_QUICK_DOWNLOAD_CLASS,
+                    HookTargets.KEY_QUICK_MESSAGE_CLASS, HookTargets.KEY_QUICK_FOLLOW_CLASS}) {
+                Class<?> model = cachedTargets.type(key);
+                if (model == null) {
+                    XposedBridge.log("FQHook+RemoveCard: 允许模型缺失，跳过聚合过滤: " + key);
+                    return;
+                }
+                allowed.add(model);
+            }
             XposedBridge.hookMethod(aggregate, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
@@ -498,9 +535,7 @@ public class UIHooks extends BaseHook {
                         if (item == null) {
                             continue;
                         }
-                        String type = item.getClass().getName();
-                        if ("de4.v0".equals(type) || "de4.x0".equals(type)
-                                || "de4.i".equals(type) || "de4.p0".equals(type)) {
+                        if (allowed.contains(item.getClass())) {
                             kept.add(item);
                         }
                     }
@@ -526,6 +561,9 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyRecommendFlowHooks() {
+        installRecommendSceneHook(HookTargets.KEY_RECOMMEND_MALL_PARSE_METHOD, -1);
+        installRecommendSceneHook(HookTargets.KEY_RECOMMEND_NATIVE_PARSE_METHOD, 3);
+        installRecommendSceneHook(HookTargets.KEY_RECOMMEND_KMP_PARSE_METHOD, 4);
         Method method = cachedTargets.method(HookTargets.KEY_FILTER_DATA_METHOD);
         if (method == null) {
             XposedBridge.log("FQHook+RecommendFlow: 未找到推荐流过滤方法");
@@ -545,6 +583,56 @@ public class UIHooks extends BaseHook {
             }
         });
         XposedBridge.log("FQHook+RecommendFlow: 保留 Book / RankListBook，并额外过滤听书样式卡片");
+    }
+
+    private void installRecommendSceneHook(String key, final int sceneIndex) {
+        try {
+            Method method = cachedTargets.method(key);
+            if (method == null || !List.class.isAssignableFrom(method.getReturnType())
+                    || method.getParameterTypes().length != (sceneIndex < 0 ? 5 : sceneIndex + 1)) {
+                XposedBridge.log("FQHook+RecommendFlow: 场景解析目标缺失或不兼容 " + key);
+                return;
+            }
+            XposedBridge.hookMethod(method, new XC_MethodHook() {
+                private final Set<String> seen = new HashSet<>();
+
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    Object scene = sceneIndex < 0 ? null : param.args[sceneIndex];
+                    String name = scene instanceof Enum<?> ? ((Enum<?>) scene).name() : String.valueOf(scene);
+                    if (seen.add("scene=" + name)) {
+                        XposedBridge.log("FQHook+RecommendFlow: " + key + " 实际场景=" + name);
+                    }
+                    // 只处理书城主推荐场景，不拦搜索、书架、听书独立频道或章末。
+                    boolean nativeWithoutScene = scene == null
+                            && (HookTargets.KEY_RECOMMEND_NATIVE_PARSE_METHOD.equals(key)
+                            || HookTargets.KEY_RECOMMEND_MALL_PARSE_METHOD.equals(key));
+                    if (!("BOOK_MALL_RECOMMEND".equals(name) || "BOOK_MALL".equals(name) || nativeWithoutScene)) {
+                        return;
+                    }
+                    try {
+                        Object cell = param.args[0];
+                        // 旧原生桥会传 null；这里只去除明确音频/书荒，不套全量白名单。
+                        String reason = recommendFilterHelper.filterTree(cell,
+                                nativeWithoutScene ? null : ALLOWED_RECOMMEND_GROUP_TYPES);
+                        if (reason != null) {
+                            param.setResult(new ArrayList<>());
+                            XposedBridge.log("FQHook+RecommendFlow: 场景过滤 " + key + " " + reason);
+                        } else if (seen.size() < 24) {
+                            String summary = recommendFilterHelper.describe(cell);
+                            if (seen.add(summary)) {
+                                XposedBridge.log("FQHook+RecommendFlow: 推荐保留 " + summary);
+                            }
+                        }
+                    } catch (Throwable throwable) {
+                        HookUtils.logError("FQHook+RecommendFlow: 场景过滤失败，保留原行为: ", throwable);
+                    }
+                }
+            });
+            XposedBridge.log("FQHook+RecommendFlow: 已安装场景解析过滤 " + key + ": " + method);
+        } catch (Throwable throwable) {
+            HookUtils.logError("FQHook+RecommendFlow: 场景 Hook 失败: ", throwable);
+        }
     }
 
     @SuppressWarnings("unchecked")

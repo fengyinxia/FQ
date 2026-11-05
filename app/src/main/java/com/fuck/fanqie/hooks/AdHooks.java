@@ -112,10 +112,17 @@ public class AdHooks extends BaseHook {
     }
 
     public void applyHideBookshelfRelateVideoBannerHooks() {
+        for (String key : new String[]{HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD,
+                HookTargets.KEY_BOOKSHELF_BANNER_LIST_METHOD, HookTargets.KEY_BOOKSHELF_BANNER_FIRST_METHOD}) {
+            applyBookshelfBannerConsumer(key);
+        }
+    }
+
+    private void applyBookshelfBannerConsumer(String key) {
         try {
-            Method bannerResponseMethod = cachedTargets.method(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD);
+            Method bannerResponseMethod = cachedTargets.method(key);
             if (bannerResponseMethod == null) {
-                XposedBridge.log("FQHook+BookshelfBanner: 未找到书架 Banner 响应方法");
+                XposedBridge.log("FQHook+BookshelfBanner: 未找到响应消费入口 " + key);
                 return;
             }
             XposedBridge.hookMethod(bannerResponseMethod, new XC_MethodHook() {
@@ -196,7 +203,7 @@ public class AdHooks extends BaseHook {
                     return bannerType instanceof Enum<?> && "RelateVideo".equals(((Enum<?>) bannerType).name());
                 }
             });
-            XposedBridge.log("FQHook+BookshelfBanner: 成功应用书架短剧 Banner 过滤钩子");
+            XposedBridge.log("FQHook+BookshelfBanner: 已安装响应过滤 " + key + ": " + bannerResponseMethod);
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+BookshelfBanner: 应用书架短剧 Banner 过滤钩子失败: ", throwable);
         }

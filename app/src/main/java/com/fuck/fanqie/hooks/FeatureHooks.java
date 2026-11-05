@@ -225,8 +225,49 @@ public class FeatureHooks extends BaseHook {
         }
     }
 
+    private void applyKmpChapterControlHooks() {
+        installKmpChapterBlock(HookTargets.KEY_KMP_AUTHOR_SAY_GATE_METHOD, true);
+        installKmpChapterBlock(HookTargets.KEY_KMP_CHAPTER_CARD_METHOD, false);
+        installKmpChapterBlock(HookTargets.KEY_KMP_CHAPTER_FALLBACK_METHOD, false);
+    }
+
+    private void installKmpChapterBlock(String key, boolean gate) {
+        try {
+            Method method = cachedTargets.method(key);
+            if (method == null) {
+                XposedBridge.log("FQHook+ChapterControl: KMP 章末目标缺失，跳过: " + key);
+                return;
+            }
+            Class<?>[] types = method.getParameterTypes();
+            boolean valid = gate
+                    ? method.getReturnType() == boolean.class && types.length == 2
+                        && "com.dragon.read.rpc.model.GetAuthorSpeakData".equals(types[0].getName())
+                        && types[1] == String.class
+                    : !method.getReturnType().isPrimitive() && types.length == 1;
+            if (!valid || java.lang.reflect.Modifier.isStatic(method.getModifiers())) {
+                XposedBridge.log("FQHook+ChapterControl: KMP 章末契约不兼容，跳过: " + method);
+                return;
+            }
+            XposedBridge.hookMethod(method, new XC_MethodHook() {
+                private int logged;
+
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    param.setResult(gate ? Boolean.FALSE : null);
+                    if (logged++ < 3) {
+                        XposedBridge.log("FQHook+ChapterControl: 已拦截 KMP 章末: " + key);
+                    }
+                }
+            });
+            XposedBridge.log("FQHook+ChapterControl: 已安装 KMP 章末拦截: " + method);
+        } catch (Throwable throwable) {
+            HookUtils.logError("FQHook+ChapterControl: KMP 章末安装失败 " + key + ": ", throwable);
+        }
+    }
+
     public void applyChapterControlHooks() {
         applyCoverTitleRenderHooks();
+        applyKmpChapterControlHooks();
 
         try {
             Method authorSayMethod = cachedTargets.method(HookTargets.KEY_AUTHOR_SAY_METHOD);
@@ -257,24 +298,15 @@ public class FeatureHooks extends BaseHook {
                 XposedBridge.log("FQHook+ChapterControl: 已安装封面热门评论 View 拦截: "
                         + coverHotCommentMethod);
 
-                // 7.3.9.32 同一 dispatcher 的 P1 返回可空 Pair，控制 EPUB 热评页插入。
-                // 在插入入口返回 null，而非跳过 Compose 渲染，避免空白热评页及状态失配。
-                for (Method method : coverHotCommentMethod.getDeclaringClass().getDeclaredMethods()) {
-                    if (!"P1".equals(method.getName()) || method.getParameterTypes().length != 0) {
-                        continue;
-                    }
-                    if (!"kotlin.Pair".equals(method.getReturnType().getName())) {
-                        XposedBridge.log("FQHook+ChapterControl: EPUB 封面热评插入返回类型不兼容，跳过: " + method);
-                        continue;
-                    }
-                    XposedBridge.hookMethod(method, new XC_MethodHook() {
-                        @Override
-                        protected void beforeHookedMethod(MethodHookParam param) {
-                            param.setResult(null);
-                            XposedBridge.log("FQHook+ChapterControl: 已拦截 EPUB 封面热门评论页插入");
-                        }
-                    });
-                    XposedBridge.log("FQHook+ChapterControl: 已安装 EPUB 封面热门评论页拦截: " + method);
+                // 独立缓存可空 Pair 工厂，不再猜测 dispatcher 的混淆方法名。
+                Method epub = cachedTargets.method(HookTargets.KEY_COVER_EPUB_COMMENT_METHOD);
+                if (epub != null && epub.getDeclaringClass() == coverHotCommentMethod.getDeclaringClass()
+                        && epub.getParameterTypes().length == 0
+                        && "kotlin.Pair".equals(epub.getReturnType().getName())) {
+                    XposedBridge.hookMethod(epub, XC_MethodReplacement.returnConstant(null));
+                    XposedBridge.log("FQHook+ChapterControl: 已安装 EPUB 封面热评插入拦截: " + epub);
+                } else {
+                    XposedBridge.log("FQHook+ChapterControl: EPUB 热评插入入口缺失或契约不兼容，跳过");
                 }
             }
         } catch (Throwable throwable) {

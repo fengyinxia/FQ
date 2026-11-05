@@ -26,6 +26,7 @@ public class FeatureFinder extends BaseFinder {
         findUpdateMethod(bridge);
         findAbtestMethod(bridge);
         findChapterControlMethod(bridge);
+        findKmpChapterControlMethods(bridge);
         findCoverTitleRenderMethods(bridge);
     }
 
@@ -121,7 +122,18 @@ public class FeatureFinder extends BaseFinder {
                 );
             }
             if (coverMethods.size() == 1 && coverMethods.get(0).isMethod()) {
-                cacheMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD, coverMethods.get(0));
+                MethodData cover = coverMethods.get(0);
+                cacheMethod(HookTargets.KEY_COVER_HOT_COMMENT_METHOD, cover);
+                List<MethodData> epubMethods = bridge.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().declaredClass(cover.getDeclaredClassName())
+                                .paramCount(0).returnType("kotlin.Pair")
+                                .addInvoke("Lcom/dragon/read/NsCommonDepend;->isBookCommentCoverEnable()Z")
+                                .addInvoke("Lkotlin/Pair;-><init>(Ljava/lang/Object;Ljava/lang/Object;)V")));
+                if (epubMethods.size() == 1 && epubMethods.get(0).isMethod()) {
+                    cacheMethod(HookTargets.KEY_COVER_EPUB_COMMENT_METHOD, epubMethods.get(0));
+                } else {
+                    log("EPUB 热评插入入口无法唯一定位，候选数=" + epubMethods.size());
+                }
             } else {
                 log("封面热门评论入口无法唯一定位，候选数=" + coverMethods.size());
             }
@@ -172,24 +184,83 @@ public class FeatureFinder extends BaseFinder {
         }
     }
 
-    private void findSplashK1Method(DexKitBridge bridge) {
+    private void findKmpChapterControlMethods(DexKitBridge bridge) {
         try {
-            MethodData splashMethod = first(bridge.findMethod(
-                    FindMethod.create()
-                            .searchPackages(new String[]{"com.dragon.read.pages.splash"})
-                            .matcher(
-                                    MethodMatcher.create()
-                                            .declaredClass("com.dragon.read.pages.splash.SplashActivity")
-                                            .paramTypes(new String[]{"android.content.Intent", "android.os.Bundle"})
-                                            .returnType(Void.TYPE)
-                                            .addInvoke("Landroid/app/Activity;->startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
-                            )
-            ));
-            if (splashMethod == null) {
-                log("未找到启动页跳转方法");
+            // 该门禁只供阅读器章末作者卡使用；不碰作者主页或全局作者说数据。
+            cacheUniqueKmpMethod(HookTargets.KEY_KMP_AUTHOR_SAY_GATE_METHOD,
+                    bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.kmp.community.reader.helper.KmpAuthorSpeakHelper")
+                            .paramTypes("com.dragon.read.rpc.model.GetAuthorSpeakData", "java.lang.String")
+                            .returnType(Boolean.TYPE)
+                            .addUsingField("Lcom/dragon/read/rpc/model/GetAuthorSpeakData;->dataType:Lcom/dragon/read/rpc/model/AuthorSpeakDataType;", UsingType.Read))));
+        } catch (Throwable throwable) {
+            log("查找 KMP 章末作者说门禁失败", throwable);
+        }
+        try {
+            // 从专属 Compose trace 反查组合卡类型，再沿构造调用查正常/回退工厂。
+            // 不直接替换 Composable：那样既不能消除宿主预分配高度，也可能破坏组合状态。
+            List<MethodData> content = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.kmp.community.reader.chapterendcard"})
+                    .matcher(MethodMatcher.create()
+                            .paramTypes("androidx.compose.runtime.Composer", "int").returnType(Void.TYPE)
+                            .addUsingString("KmpChapterCombineCard.ChapterCombineContent (KmpChapterCombineCard.kt:")));
+            if (content.size() != 1) {
+                log("KMP 章末组合卡内容无法唯一定位，候选数=" + content.size());
                 return;
             }
-            cacheMethod(HookTargets.KEY_SPLASH_K1_METHOD, splashMethod);
+            String cardType = content.get(0).getDeclaredClassName();
+            List<MethodData> constructors = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().declaredClass(cardType).name("<init>").paramCount(12)));
+            if (constructors.size() != 1) {
+                log("KMP 章末组合卡构造器无法唯一定位，候选数=" + constructors.size());
+                return;
+            }
+            String constructor = constructors.get(0).getDescriptor();
+            List<MethodData> fallback = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.kmp.community.reader.dispatcher"})
+                    .matcher(MethodMatcher.create().paramCount(1).returnType(cardType).addInvoke(constructor)));
+            if (fallback.size() != 1) {
+                log("KMP 章末回退工厂无法唯一定位，候选数=" + fallback.size());
+                return;
+            }
+            MethodData fallbackMethod = fallback.get(0);
+            cacheMethod(HookTargets.KEY_KMP_CHAPTER_FALLBACK_METHOD, fallbackMethod);
+            // 两工厂共用同一章末上下文，正常路径返回卡片接口，可空时才走回退。
+            cacheUniqueKmpMethod(HookTargets.KEY_KMP_CHAPTER_CARD_METHOD,
+                    bridge.findMethod(FindMethod.create()
+                            .searchPackages(new String[]{"com.dragon.read.kmp.community.reader.helper"})
+                            .matcher(MethodMatcher.create()
+                                    .paramTypes(fallbackMethod.getParamTypeNames().get(0))
+                                    .addInvoke(constructor))));
+        } catch (Throwable throwable) {
+            log("查找 KMP 章末卡片工厂失败", throwable);
+        }
+    }
+
+    private void cacheUniqueKmpMethod(String key, List<MethodData> methods) {
+        if (methods.size() == 1 && methods.get(0).isMethod()
+                && !Modifier.isStatic(methods.get(0).getModifiers())) {
+            cacheMethod(key, methods.get(0));
+        } else {
+            log(key + " 无法唯一定位实例方法，候选数=" + methods.size());
+        }
+    }
+
+    private void findSplashK1Method(DexKitBridge bridge) {
+        try {
+            // Android 覆写入口名称稳定；AOP/twin 的直接调用关系并不稳定。
+            List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create()
+                            .declaredClass("com.dragon.read.pages.splash.SplashActivity")
+                            .name("startActivity")
+                            .paramTypes("android.content.Intent", "android.os.Bundle")
+                            .returnType(Void.TYPE)));
+            if (methods.size() == 1 && methods.get(0).isMethod()
+                    && !Modifier.isStatic(methods.get(0).getModifiers())) {
+                cacheMethod(HookTargets.KEY_SPLASH_K1_METHOD, methods.get(0));
+            } else {
+                log("启动页覆写跳转入口无法唯一定位，候选数=" + methods.size());
+            }
         } catch (Throwable throwable) {
             log("查找启动页跳转方法失败", throwable);
         }

@@ -11,6 +11,9 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassData;
 import org.luckypray.dexkit.result.MethodData;
 
+import java.lang.reflect.Modifier;
+import java.util.List;
+
 public class AdFinder extends BaseFinder {
     public AdFinder(TargetScanResult scanResult) {
         super(scanResult);
@@ -76,17 +79,30 @@ public class AdFinder extends BaseFinder {
 
     private void findLuckyDogMethod(DexKitBridge bridge) {
         try {
-            MethodData luckyDogMethod = first(bridge.findMethod(
-                    FindMethod.create()
-                            .searchPackages(new String[]{"com.dragon.read"})
-                            .matcher(
-                                    MethodMatcher.create()
-                                            .usingStrings(new String[]{"gold_reverse", "app_global_config"})
-                                            .returnType(Boolean.TYPE)
-                                            .paramCount(0)
-                            )
-            ));
-            cacheMethod(HookTargets.KEY_LUCKY_DOG_METHOD, luckyDogMethod);
+            List<MethodData> cores = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read"})
+                    .matcher(MethodMatcher.create()
+                            .usingStrings("gold_reverse", "app_global_config")
+                            .modifiers(Modifier.STATIC)
+                            .paramTypes("boolean")
+                            .returnType(Boolean.TYPE)
+                            .addInvoke("Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z")));
+            if (cores.size() != 1) {
+                log("LuckyDog 配置核心无法唯一定位，候选数=" + cores.size());
+                return;
+            }
+            // 挂在缓存外层，避免 AtomicBoolean 已有值时绕过配置核心。
+            List<MethodData> gates = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().declaredClass(cores.get(0).getDeclaredClassName())
+                            .modifiers(Modifier.STATIC).paramCount(0).returnType(Boolean.TYPE)
+                            .addInvoke(cores.get(0).getDescriptor())
+                            .addInvoke("Ljava/util/concurrent/atomic/AtomicBoolean;->get()Z")
+                            .addInvoke("Ljava/util/concurrent/atomic/AtomicBoolean;->set(Z)V")));
+            if (gates.size() == 1 && gates.get(0).isMethod()) {
+                cacheMethod(HookTargets.KEY_LUCKY_DOG_METHOD, gates.get(0));
+            } else {
+                log("LuckyDog 缓存外层门禁无法唯一定位，候选数=" + gates.size());
+            }
         } catch (Throwable throwable) {
             log("查找 LuckyDog 方法失败", throwable);
         }

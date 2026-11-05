@@ -10,9 +10,23 @@ public final class HookTargets {
     public static final String KEY_BOOK_NAME_CLICK_METHOD = "method_book_name_click";
     public static final String KEY_CHAPTER_END_CONTROL_METHOD = "method_chapter_end_control";
     public static final String KEY_CHAPTER_END_HOT_COMMENT_METHOD = "method_chapter_end_hot_comment";
+    public static final String KEY_KMP_AUTHOR_SAY_GATE_METHOD = "method_kmp_author_say_gate";
+    public static final String KEY_KMP_CHAPTER_CARD_METHOD = "method_kmp_chapter_card";
+    public static final String KEY_KMP_CHAPTER_FALLBACK_METHOD = "method_kmp_chapter_fallback";
     public static final String KEY_CATEGORY_TAB_DISABLED_METHOD = "method_category_tab_disabled";
     public static final String KEY_CHECK_UPDATE_METHOD = "method_check_update";
     public static final String KEY_COVER_HOT_COMMENT_METHOD = "method_cover_hot_comment";
+    public static final String KEY_COVER_EPUB_COMMENT_METHOD = "method_cover_epub_comment";
+    public static final String KEY_QUICK_HISTORY_CLASS = "class_quick_history";
+    public static final String KEY_QUICK_DOWNLOAD_CLASS = "class_quick_download";
+    public static final String KEY_QUICK_MESSAGE_CLASS = "class_quick_message";
+    public static final String KEY_QUICK_FOLLOW_CLASS = "class_quick_follow";
+    public static final String KEY_MY_PAGE_SEARCH_FACTORY_METHOD = "method_my_page_search_factory";
+    public static final String KEY_MY_PAGE_WALLET_CLASS = "class_my_page_wallet";
+    public static final String KEY_MY_PAGE_KMP_TOPBAR_CLASS = "class_my_page_kmp_topbar";
+    public static final String KEY_MY_PAGE_KMP_QUICK_METHOD = "method_my_page_kmp_quick";
+    public static final String KEY_BOOKSHELF_BANNER_LIST_METHOD = "method_bookshelf_banner_list";
+    public static final String KEY_BOOKSHELF_BANNER_FIRST_METHOD = "method_bookshelf_banner_first";
     public static final String KEY_COVER_TEXT_RENDER_METHOD = "method_cover_text_render";
     public static final String KEY_COVER_IMAGE_RENDER_METHOD = "method_cover_image_render";
     public static final String KEY_CHAPTER_DECRYPT_METHOD = "method_chapter_decrypt";
@@ -23,6 +37,9 @@ public final class HookTargets {
     public static final String KEY_QUICK_ACCESS_CONVERT_METHOD = "method_quick_access_convert";
     public static final String KEY_QUICK_ACCESS_AGGREGATE_METHOD = "method_quick_access_aggregate";
     public static final String KEY_FILTER_DATA_METHOD = "method_filter_data";
+    public static final String KEY_RECOMMEND_NATIVE_PARSE_METHOD = "method_recommend_native_parse";
+    public static final String KEY_RECOMMEND_MALL_PARSE_METHOD = "method_recommend_mall_parse";
+    public static final String KEY_RECOMMEND_KMP_PARSE_METHOD = "method_recommend_kmp_parse";
     public static final String KEY_LUCKY_DOG_METHOD = "method_lucky_dog";
     public static final String KEY_MAIN_ACTIVITY_ON_CREATE_METHOD = "method_main_activity_on_create";
     public static final String KEY_MY_PAGE_CONTENT_METHOD = "method_my_page_content";
@@ -53,9 +70,23 @@ public final class HookTargets {
             KEY_BOOK_NAME_CLICK_METHOD,
             KEY_CHAPTER_END_CONTROL_METHOD,
             KEY_CHAPTER_END_HOT_COMMENT_METHOD,
+            KEY_KMP_AUTHOR_SAY_GATE_METHOD,
+            KEY_KMP_CHAPTER_CARD_METHOD,
+            KEY_KMP_CHAPTER_FALLBACK_METHOD,
             KEY_CATEGORY_TAB_DISABLED_METHOD,
             KEY_CHECK_UPDATE_METHOD,
             KEY_COVER_HOT_COMMENT_METHOD,
+            KEY_COVER_EPUB_COMMENT_METHOD,
+            KEY_QUICK_HISTORY_CLASS,
+            KEY_QUICK_DOWNLOAD_CLASS,
+            KEY_QUICK_MESSAGE_CLASS,
+            KEY_QUICK_FOLLOW_CLASS,
+            KEY_MY_PAGE_SEARCH_FACTORY_METHOD,
+            KEY_MY_PAGE_WALLET_CLASS,
+            KEY_MY_PAGE_KMP_TOPBAR_CLASS,
+            KEY_MY_PAGE_KMP_QUICK_METHOD,
+            KEY_BOOKSHELF_BANNER_LIST_METHOD,
+            KEY_BOOKSHELF_BANNER_FIRST_METHOD,
             KEY_COVER_TEXT_RENDER_METHOD,
             KEY_COVER_IMAGE_RENDER_METHOD,
             KEY_CHAPTER_DECRYPT_METHOD,
@@ -66,6 +97,9 @@ public final class HookTargets {
             KEY_QUICK_ACCESS_CONVERT_METHOD,
             KEY_QUICK_ACCESS_AGGREGATE_METHOD,
             KEY_FILTER_DATA_METHOD,
+            KEY_RECOMMEND_NATIVE_PARSE_METHOD,
+            KEY_RECOMMEND_MALL_PARSE_METHOD,
+            KEY_RECOMMEND_KMP_PARSE_METHOD,
             KEY_LUCKY_DOG_METHOD,
             KEY_MAIN_ACTIVITY_ON_CREATE_METHOD,
             KEY_MY_PAGE_CONTENT_METHOD,

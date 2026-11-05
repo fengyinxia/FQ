@@ -29,6 +29,7 @@ public class UIFinder extends BaseFinder {
         findVipRelatedTargets(bridge);
         findSearchBarMethod(bridge);
         findFilterHomeMethod(bridge);
+        findRecommendParseMethods(bridge);
         findTabMethod(bridge);
         findTabRouteHelperClass(bridge);
         findDynamicMethod(bridge);
@@ -37,6 +38,8 @@ public class UIFinder extends BaseFinder {
         findMyPageRecommendEnableMethod(bridge);
         findMyPageContentMethod(bridge);
         findMyPageSettingsClickMethod(bridge);
+        findMyPageViewTargets(bridge);
+        findKmpMyPageTargets(bridge);
         findCategoryTabTargets(bridge);
         findSearchCueListMethod(bridge, HookTargets.KEY_SEARCH_CUE_LIST_METHOD,
                 "com.dragon.read.component.biz.impl.bookmall.search.SearchWordDisplayView");
@@ -188,26 +191,25 @@ public class UIFinder extends BaseFinder {
 
     private void findBookshelfBannerResponseMethod(DexKitBridge bridge) {
         try {
-            // 请求成功日志已挪到 Runnable.run()；7.3.9.32 的实际消费方是 g34.x.invoke(Object)。
-            MethodData methodData = first(bridge.findMethod(
-                    FindMethod.create().matcher(
-                            MethodMatcher.create()
-                                    .declaredClass("g34.x")
-                                    .name("invoke")
-                                    .paramTypes(new String[]{"java.lang.Object"})
-                                    .returnType("java.lang.Object")
-                    )
-            ));
-            if (methodData == null) {
-                methodData = first(bridge.findMethod(
-                        FindMethod.create().matcher(
-                                MethodMatcher.create()
-                                        .usingStrings(new String[]{"request banner data success size:"})
-                                        .paramTypes(new String[]{"com.dragon.read.rpc.model.GetBookShelfBannerResponse"})
-                        )
-                ));
+            List<MethodData> consumers = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create().name("invoke").paramTypes("java.lang.Object")
+                            .returnType("java.lang.Object")
+                            .addUsingField("Lcom/dragon/read/rpc/model/GetBookShelfBannerResponse;->data:Lcom/dragon/read/rpc/model/GetBookShelfBannerData;", UsingType.Read)
+                            .addUsingField("Lcom/dragon/read/rpc/model/GetBookShelfBannerData;->bannerData:Ljava/util/List;", UsingType.Read)));
+            List<MethodData> main = new ArrayList<>(), list = new ArrayList<>(), first = new ArrayList<>();
+            for (MethodData consumer : consumers) {
+                if (invokes(consumer, "Lcom/dragon/read/util/NetReqUtil;->assertRspDataOk(Ljava/lang/Object;)V")) {
+                    main.add(consumer);
+                } else if (invokes(consumer, "Lkotlin/collections/CollectionsKt;->firstOrNull(Ljava/util/List;)Ljava/lang/Object;")) {
+                    first.add(consumer);
+                } else if (invokes(consumer, "Ljava/util/List;->isEmpty()Z")
+                        && invokes(consumer, "Ljava/util/ArrayList;->addAll(Ljava/util/Collection;)Z")) {
+                    list.add(consumer);
+                }
             }
-            cacheMethod(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD, methodData);
+            cacheUniqueMethod(HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD, main);
+            cacheUniqueMethod(HookTargets.KEY_BOOKSHELF_BANNER_LIST_METHOD, list);
+            cacheUniqueMethod(HookTargets.KEY_BOOKSHELF_BANNER_FIRST_METHOD, first);
         } catch (Throwable throwable) {
             log("查找书架 Banner 响应方法失败", throwable);
         }
@@ -266,6 +268,7 @@ public class UIFinder extends BaseFinder {
             cacheMethod(HookTargets.KEY_QUICK_ACCESS_CONVERT_METHOD, converter);
             // 保留原类 key 的含义；Hook 层改读新方法 key，不再按类名分流。
             cacheClass(HookTargets.KEY_FEATURE_LIST_LOAD_CLASS, converter.getDeclaredClass());
+            findQuickAccessModelClasses(bridge, converter);
 
             List<MethodData> aggregates = bridge.findMethod(FindMethod.create()
                     .searchPackages(new String[]{"com.dragon.read.component.biz.impl.mine"})
@@ -282,6 +285,188 @@ public class UIFinder extends BaseFinder {
             }
         } catch (Throwable throwable) {
             log("查找新版快捷功能目标失败", throwable);
+        }
+    }
+
+    private static boolean invokes(MethodData method, String descriptor) {
+        for (MethodData call : method.getInvokes()) {
+            if (descriptor.equals(call.getDescriptor())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void cacheUniqueMethod(String key, List<MethodData> methods) {
+        if (methods.size() == 1 && methods.get(0).isMethod()) {
+            cacheMethod(key, methods.get(0));
+        } else {
+            log(key + " 无法唯一定位，候选数=" + methods.size());
+        }
+    }
+
+    private void findQuickAccessModelClasses(DexKitBridge bridge, MethodData converter) {
+        List<MethodData> history = new ArrayList<>(), download = new ArrayList<>();
+        List<MethodData> message = new ArrayList<>(), follow = new ArrayList<>();
+        for (MethodData ctor : converter.getInvokes()) {
+            if (!"<init>".equals(ctor.getName())) {
+                continue;
+            }
+            List<String> params = ctor.getParamTypeNames();
+            if (ctor.getUsingStrings().contains("浏览历史")) {
+                history.add(ctor);
+            } else if (ctor.getUsingStrings().contains("我的下载")) {
+                download.add(ctor);
+            } else if (params.size() == 2
+                    && "androidx.fragment.app.FragmentActivity".equals(params.get(0))
+                    && invokes(ctor, "Ljava/lang/Number;->intValue()I")) {
+                // 宿主 dispatcher 提供标题/图标/Runnable 的动态消息入口。
+                message.add(ctor);
+            }
+            for (MethodData nested : ctor.getInvokes()) {
+                String owner = ctor.getDeclaredClassName();
+                String packageName = owner.substring(0, owner.lastIndexOf('.') + 1);
+                if (!"<init>".equals(nested.getName())
+                        || !nested.getDeclaredClassName().startsWith(packageName)) {
+                    continue;
+                }
+                boolean found = false;
+                for (MethodData click : nested.getDeclaredClass().getMethods()) {
+                    if (invokes(click, "Lcom/dragon/read/component/biz/api/NsMineDepend;->clickMyFollowItem(Landroid/app/Activity;)V")) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    follow.add(ctor);
+                    break;
+                }
+            }
+        }
+        cacheUniqueModel(HookTargets.KEY_QUICK_HISTORY_CLASS, history);
+        cacheUniqueModel(HookTargets.KEY_QUICK_DOWNLOAD_CLASS, download);
+        cacheUniqueModel(HookTargets.KEY_QUICK_MESSAGE_CLASS, message);
+        cacheUniqueModel(HookTargets.KEY_QUICK_FOLLOW_CLASS, follow);
+    }
+
+    private void cacheUniqueModel(String key, List<MethodData> constructors) {
+        if (constructors.size() == 1) {
+            cacheClass(key, constructors.get(0).getDeclaredClass());
+        } else {
+            log(key + " 模型无法唯一定位，候选数=" + constructors.size());
+        }
+    }
+
+    private void findKmpMyPageTargets(DexKitBridge bridge) {
+        try {
+            List<MethodData> content = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.kmp.mine.tab.page.topbar"})
+                    .matcher(MethodMatcher.create().name("invoke").paramCount(3)
+                            .returnType("java.lang.Object")
+                            .addUsingString("FanqieMineTopBar.<anonymous> (FanqieMineTopBar.kt:")));
+            if (content.size() != 1) {
+                log("KMP 我的页头部内容不唯一，候选=" + content.size());
+                return;
+            }
+            cacheClass(HookTargets.KEY_MY_PAGE_KMP_TOPBAR_CLASS, content.get(0).getDeclaredClass());
+            // 头部构造参数会选择宿主自己的空白占位分支，无需替换 Compose 渲染。
+        } catch (Throwable throwable) {
+            log("查找 KMP 我的页头部目标失败", throwable);
+        }
+        try {
+            List<MethodData> quick = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.kmp.mine.tab.quickaccess"})
+                    .matcher(MethodMatcher.create().paramCount(2).returnType(Void.TYPE)
+                            .addUsingString("duplicate item=")
+                            .addUsingString("Factory returned mismatched item ")));
+            if (quick.size() == 1 && "java.util.List".equals(quick.get(0).getParamTypeNames().get(0))) {
+                cacheMethod(HookTargets.KEY_MY_PAGE_KMP_QUICK_METHOD, quick.get(0));
+            } else {
+                log("KMP 快捷入口无法唯一定位，候选=" + quick.size());
+            }
+        } catch (Throwable throwable) {
+            log("查找 KMP 快捷入口失败", throwable);
+        }
+    }
+
+    private void findMyPageViewTargets(DexKitBridge bridge) {
+        try {
+            List<MethodData> pages = bridge.findMethod(FindMethod.create().matcher(
+                    MethodMatcher.create()
+                            .declaredClass("com.dragon.read.component.biz.impl.mine.FanqieMineFragmentV2")
+                            .name("onCreateContent")
+                            .paramTypes("android.view.LayoutInflater", "android.view.ViewGroup", "android.os.Bundle")
+                            .returnType("android.view.View")
+                            .addUsingString("mine_search_entrance_config_v683")));
+            List<MethodData> factories = new ArrayList<>();
+            if (pages.size() == 1) {
+                for (MethodData call : pages.get(0).getInvokes()) {
+                    List<String> params = call.getParamTypeNames();
+                    if (Modifier.isStatic(call.getModifiers()) && params.size() == 2
+                            && "android.content.Context".equals(params.get(0))
+                            && "androidx.compose.ui.platform.ComposeView".equals(call.getReturnTypeName())
+                            && invokes(call, "Landroidx/compose/ui/platform/ComposeView;->setContent(Lkotlin/jvm/functions/Function2;)V")) {
+                        factories.add(call);
+                    }
+                }
+            }
+            cacheUniqueMethod(HookTargets.KEY_MY_PAGE_SEARCH_FACTORY_METHOD, factories);
+        } catch (Throwable throwable) {
+            log("查找我的页搜索 View 工厂失败", throwable);
+        }
+        try {
+            List<ClassData> wallets = bridge.findClass(FindClass.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.mine.card.model"})
+                    .matcher(ClassMatcher.create().usingStrings("PolarisCard", "key_withdraw_cache")));
+            if (wallets.size() == 1) {
+                cacheClass(HookTargets.KEY_MY_PAGE_WALLET_CLASS, wallets.get(0));
+            } else {
+                log("钱包卡组件无法唯一定位，候选数=" + wallets.size());
+            }
+        } catch (Throwable throwable) {
+            log("查找钱包卡组件失败", throwable);
+        }
+    }
+
+    private void findRecommendParseMethods(DexKitBridge bridge) {
+        try {
+            List<MethodData> nativeMethods = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.bookmall"})
+                    .matcher(MethodMatcher.create().modifiers(Modifier.STATIC)
+                            .paramTypes("com.dragon.read.rpc.model.CellViewData", "int", "int",
+                                    "com.dragon.read.feed.staggeredfeed.FeedScene")
+                            .returnType(List.class)
+                            .addUsingString("infinite_preference_card_show_time")
+                            .addUsingString("parseTopicInfoFromAbstractTags error: ")));
+            cacheUniqueMethod(HookTargets.KEY_RECOMMEND_NATIVE_PARSE_METHOD, nativeMethods);
+            if (nativeMethods.size() == 1) {
+                List<MethodData> mallMethods = bridge.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().declaredClass(nativeMethods.get(0).getDeclaredClassName())
+                                .modifiers(Modifier.STATIC)
+                                .paramTypes("com.dragon.read.rpc.model.CellViewData", "int", "int",
+                                        "com.dragon.read.rpc.model.ClientTemplate", "boolean")
+                                .returnType(List.class)
+                                .addUsingField("Lcom/dragon/read/rpc/model/CellViewData;->renderCellType:Lcom/dragon/read/rpc/model/RenderCellType;", UsingType.Read)
+                                .addUsingString("解析服务端定位参数成功")));
+                cacheUniqueMethod(HookTargets.KEY_RECOMMEND_MALL_PARSE_METHOD, mallMethods);
+            }
+        } catch (Throwable throwable) {
+            log("查找原生推荐场景解析入口失败", throwable);
+        }
+        try {
+            List<MethodData> kmpMethods = bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.kmp.common_feed.data"})
+                    .matcher(MethodMatcher.create().modifiers(Modifier.STATIC)
+                            .paramTypes("com.dragon.read.rpc.model.CellViewData", "java.lang.Integer", "boolean",
+                                    "com.dragon.read.kmp.common_feed.data.CellViewDataParseManager$CardParsePolicy",
+                                    "com.dragon.read.feed.staggeredfeed.FeedScene")
+                            .returnType(List.class)
+                            .addUsingField("Lcom/dragon/read/rpc/model/CellViewData;->cellData:Ljava/util/List;", UsingType.Read)
+                            .addUsingField("Lcom/dragon/read/rpc/model/CellViewData;->groupIdType:Lcom/dragon/read/rpc/model/CandidateDataType;", UsingType.Read)
+                            .addInvoke("Lcom/dragon/read/rpc/model/ShowType;->getValue()I")));
+            cacheUniqueMethod(HookTargets.KEY_RECOMMEND_KMP_PARSE_METHOD, kmpMethods);
+        } catch (Throwable throwable) {
+            log("查找 KMP 推荐场景解析入口失败", throwable);
         }
     }
 
