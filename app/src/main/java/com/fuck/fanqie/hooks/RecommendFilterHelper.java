@@ -22,6 +22,7 @@ final class RecommendFilterHelper {
     }
 
     String getFilterReason(Object cellViewData, boolean knownRecommendScene) {
+        if (!knownRecommendScene) return null;
         String showType = resolveName(readField(cellViewData, "showType"));
         String groupType = resolveGroupTypeName(cellViewData);
         // 只在实际收到类型后加入目录。固定映射仅作显示和明确旧规则迁移。
@@ -42,8 +43,8 @@ final class RecommendFilterHelper {
         if (containsType(groupType, "Comic") || containsType(showType, "Comic")) {
             return dynamic("kind/comic", "漫画与漫剧卡片", PluginSettings.enabled("rec_comic"));
         }
-        // 只有明确推荐场景才采集普通类型，场景未知的桥接入口不扩展过滤范围。
-        if (knownRecommendScene && (groupType != null || showType != null)) {
+        // 来源门禁在所有类型判断之前，普通类型沿用实际观测目录。
+        if (groupType != null || showType != null) {
             String id = groupType != null ? "group/" + groupType : "show/" + showType;
             return dynamic(id, groupType != null ? groupType : showType, false);
         }
@@ -59,6 +60,8 @@ final class RecommendFilterHelper {
     }
 
     String filterTree(Object cell, boolean knownRecommendScene) {
+        // 必须在递归及改写 cellData 之前拒绝非书城推荐来源。
+        if (!knownRecommendScene) return null;
         return filterTree(cell, knownRecommendScene, Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>()),
                 new IdentityHashMap<Object, String>(), 0);
     }

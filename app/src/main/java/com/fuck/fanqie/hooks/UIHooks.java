@@ -554,25 +554,8 @@ public class UIHooks extends BaseHook {
         installRecommendSceneHook(HookTargets.KEY_RECOMMEND_MALL_PARSE_METHOD, -1);
         installRecommendSceneHook(HookTargets.KEY_RECOMMEND_NATIVE_PARSE_METHOD, 3);
         installRecommendSceneHook(HookTargets.KEY_RECOMMEND_KMP_PARSE_METHOD, 4);
-        Method method = cachedTargets.method(HookTargets.KEY_FILTER_DATA_METHOD);
-        if (method == null) {
-            XposedBridge.log("FQHook+RecommendFlow: 未找到推荐流过滤方法");
-            return;
-        }
-
-        XposedBridge.hookMethod(method, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                Object cellViewData = param.args.length > 0 ? param.args[0] : null;
-                String reason = recommendFilterHelper.filterTree(cellViewData, true);
-                if (reason == null) {
-                    return;
-                }
-                param.setResult(new ArrayList<>());
-                XposedBridge.log("FQHook+RecommendFlow: 已过滤推荐流卡片 " + reason);
-            }
-        });
-        XposedBridge.log("FQHook+RecommendFlow: 已安装动态目录发现与按项目过滤");
+        // V 无业务来源参数；K/U 已递归处理书城数据，不能在共用底层再次无条件过滤。
+        XposedBridge.log("FQHook+RecommendFlow: 已安装仅书城推荐的动态目录发现与过滤");
     }
 
     private void installRecommendSceneHook(String key, final int sceneIndex) {
@@ -583,8 +566,17 @@ public class UIHooks extends BaseHook {
                 XposedBridge.log("FQHook+RecommendFlow: 场景解析目标缺失或不兼容 " + key);
                 return;
             }
+            final int recommendTabType;
+            if (sceneIndex != 4) {
+                Object type = XposedHelpers.getStaticObjectField(
+                        XposedHelpers.findClass("com.dragon.read.rpc.model.BookstoreTabType", hostClassLoader),
+                        "recommend");
+                recommendTabType = ((Number) XposedHelpers.callMethod(type, "getValue")).intValue();
+            } else {
+                recommendTabType = -1;
+            }
             XposedBridge.hookMethod(method, new XC_MethodHook() {
-                private final Set<String> seen = new HashSet<>();
+                private final Set<String> seen = java.util.Collections.synchronizedSet(new HashSet<String>());
 
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
@@ -593,18 +585,23 @@ public class UIHooks extends BaseHook {
                     if (seen.size() < 24 && seen.add("scene=" + name)) {
                         XposedBridge.log("FQHook+RecommendFlow: " + key + " 实际场景=" + name);
                     }
-                    // 只处理书城主推荐场景，不拦搜索、书架、听书独立频道或章末。
-                    boolean nativeWithoutScene = scene == null
-                            && (HookTargets.KEY_RECOMMEND_NATIVE_PARSE_METHOD.equals(key)
-                            || HookTargets.KEY_RECOMMEND_MALL_PARSE_METHOD.equals(key));
-                    if (!("BOOK_MALL_RECOMMEND".equals(name) || "BOOK_MALL".equals(name) || nativeWithoutScene)) {
-                        return;
-                    }
                     try {
+                        // K/U 的第三参是 BookstoreTabType 业务值，不是页面索引。
+                        // K 也被短剧详情复用；无场景时必须正向确认 recommend，不能全局放行 null。
+                        boolean recommend = "BOOK_MALL_RECOMMEND".equals(name);
+                        if (sceneIndex != 4 && (scene == null || "BOOK_MALL".equals(name))) {
+                            recommend = param.args[2] instanceof Number
+                                    && recommendTabType == ((Number) param.args[2]).intValue();
+                            if (sceneIndex < 0 && Boolean.TRUE.equals(param.args[4])) recommend = false;
+                        }
+                        String source = "scene=" + name + (sceneIndex != 4 ? ",tabType=" + param.args[2] : "")
+                                + ",filter=" + recommend;
+                        if (seen.size() < 24 && seen.add(source)) {
+                            XposedBridge.log("FQHook+RecommendFlow: 来源 " + key + " " + source);
+                        }
+                        if (!recommend) return;
                         Object cell = param.args[0];
-                        // 专属书城入口本身确定推荐范围；通用原生 null 场景只识别明确类型。
-                        String reason = recommendFilterHelper.filterTree(cell,
-                                sceneIndex < 0 || !nativeWithoutScene);
+                        String reason = recommendFilterHelper.filterTree(cell, true);
                         if (reason != null) {
                             param.setResult(new ArrayList<>());
                             XposedBridge.log("FQHook+RecommendFlow: 场景过滤 " + key + " " + reason);
