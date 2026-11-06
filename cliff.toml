@@ -1,0 +1,35 @@
+# git-cliff 配置：从 Conventional Commits 生成 Release 说明
+# 用法：git-cliff --tag vX.Y.Z --latest --strip header -o RELEASE_NOTES.md
+
+[changelog]
+header = ""
+body = """
+{% for name in ["变更", "新增", "修复", "优化", "文档", "维护", "其他"] %}\
+{% set items = commits | filter(attribute="group", value=name) %}\
+{% if items | length > 0 %}### {{ name }}
+{% for commit in items %}- {{ commit.message | replace(from="release: ", to="") | split(pat="\n") | first | trim }}
+{% endfor %}
+{% endif %}\
+{% endfor %}\
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+  { message = "^release: v?[0-9]+\\.[0-9]+\\.[0-9]+\\s", skip = true },
+  { message = "^release", group = "变更" },
+  { message = "^feat", group = "新增" },
+  { message = "^fix", group = "修复" },
+  { message = "^perf|^refactor", group = "优化" },
+  { message = "^docs", group = "文档" },
+  { message = "^ci|^build|^chore|^style|^test", group = "维护" },
+  { message = ".*", group = "其他" },
+]
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"
