@@ -28,12 +28,12 @@ public class UIFinder extends BaseFinder {
         findQuickAccessTargets(bridge);
         findVipRelatedTargets(bridge);
         findSearchBarMethod(bridge);
+        findSearchResultMethods(bridge);
         findFilterHomeMethod(bridge);
         findRecommendParseMethods(bridge);
         findTabMethod(bridge);
         findTabRouteHelperClass(bridge);
         findDynamicMethod(bridge);
-        findBookNameClickMethod(bridge);
         findMyPageSearchBarMethod(bridge);
         findMyPageRecommendEnableMethod(bridge);
         findMyPageContentMethod(bridge);
@@ -48,7 +48,42 @@ public class UIFinder extends BaseFinder {
                 "com.dragon.read.kmp.bookmall.search.SearchWordDisplayViewKMP");
     }
 
+    private void findSearchResultMethods(DexKitBridge bridge) {
+        try {
+            cacheUniqueMethod(HookTargets.KEY_SEARCH_RESPONSE_METHOD, bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.help"})
+                    .matcher(MethodMatcher.create().modifiers(Modifier.STATIC).returnType(Void.TYPE)
+                            .paramTypes("com.dragon.read.rpc.model.GetSearchTabDataResponse")
+                            .addUsingField("Lcom/dragon/read/rpc/model/BookApiERR;->SUCCESS:Lcom/dragon/read/rpc/model/BookApiERR;", UsingType.Read)
+                            .addInvoke("Lcom/dragon/read/rpc/model/BookApiERR;->getValue()I"))));
+            cacheUniqueMethod(HookTargets.KEY_SEARCH_TABS_METHOD, bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.ui"})
+                    .matcher(MethodMatcher.create().returnType(Void.TYPE).paramCount(6)
+                            .addUsingString("init_tab_data_start")
+                            .addUsingField("Lcom/dragon/read/rpc/model/GetSearchTabDataResponse;->searchTabs:Ljava/util/List;", UsingType.Read))));
+            cacheUniqueMethod(HookTargets.KEY_SEARCH_AUTO_FILL_METHOD, bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.ui.searchpage.fragment"})
+                    .matcher(MethodMatcher.create().name("run").paramCount(0).returnType(Void.TYPE)
+                            .addUsingString("firstPageNotFull"))));
+            cacheUniqueMethod(HookTargets.KEY_SEARCH_PARSE_METHOD, bridge.findMethod(FindMethod.create()
+                    .searchPackages(new String[]{"com.dragon.read.component.biz.impl.help"})
+                    .matcher(MethodMatcher.create().paramTypes("java.util.List").returnType(List.class)
+                            .addUsingString("有个页卡没有show_type且不是lynx卡片，忽略"))));
+        } catch (Throwable error) {
+            log("查找搜索结果过滤入口失败", error);
+        }
+    }
+
     private void findSettingsEntryTargets(DexKitBridge bridge) {
+        try {
+            cacheUniqueMethod(HookTargets.KEY_SKIN_NIGHT_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().declaredClass("com.dragon.read.base.skin.SkinManager")
+                            .name("isNightMode").modifiers(Modifier.STATIC).paramCount(0).returnType(Boolean.TYPE))));
+            cacheUniqueMethod(HookTargets.KEY_SKIN_CHANGE_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().declaredClass("com.dragon.read.base.skin.SkinManager")
+                            .name("changeSkinType").modifiers(Modifier.STATIC)
+                            .paramTypes("com.dragon.read.base.skin.base.Skin").returnType(Void.TYPE))));
+        } catch (Throwable error) { log("查找宿主皮肤入口失败", error); }
         try {
             cacheUniqueMethod(HookTargets.KEY_SETTINGS_PAGE_CREATE_METHOD,
                     bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
@@ -273,21 +308,6 @@ public class UIFinder extends BaseFinder {
             cacheUniqueMethod(HookTargets.KEY_BOOKSHELF_BANNER_FIRST_METHOD, first);
         } catch (Throwable throwable) {
             log("查找书架 Banner 响应方法失败", throwable);
-        }
-    }
-
-    private void findBookNameClickMethod(DexKitBridge bridge) {
-        try {
-            MethodData methodData = first(bridge.findMethod(
-                    FindMethod.create().matcher(
-                            MethodMatcher.create()
-                                    .usingStrings(new String[]{"ivBookName", "tvBookName"})
-                                    .addInvoke("Landroid/widget/ImageView;->setOnClickListener(Landroid/view/View$OnClickListener;)V")
-                    )
-            ));
-            cacheMethod(HookTargets.KEY_BOOK_NAME_CLICK_METHOD, methodData);
-        } catch (Throwable throwable) {
-            log("查找书名点击方法失败", throwable);
         }
     }
 

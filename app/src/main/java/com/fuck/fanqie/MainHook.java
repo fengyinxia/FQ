@@ -24,18 +24,9 @@ public class MainHook implements IXposedHookLoadPackage {
 
     private static TargetRepository targetRepository;
     private static CachedTargets cachedTargets;
-    private static HookFinder hookFinder;
     private static HookApplier hookApplier;
     private static ClassLoader hostClassLoader;
     private static boolean isInitialized;
-
-    static {
-        try {
-            System.loadLibrary("dexkit");
-        } catch (Throwable throwable) {
-            log("加载 dexkit 库失败: " + throwable);
-        }
-    }
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam loadPackageParam) {
@@ -94,7 +85,7 @@ public class MainHook implements IXposedHookLoadPackage {
             PluginSettings.initialize(context);
             log("已加载本次运行配置；设置修改在重启后生效");
             hostClassLoader = context.getClassLoader();
-            String packageCodePath = context.getPackageCodePath();
+            final String packageCodePath = context.getPackageCodePath();
 
             targetRepository = new TargetRepository(context, hostClassLoader);
             cachedTargets = new CachedTargets(targetRepository);
@@ -115,17 +106,15 @@ public class MainHook implements IXposedHookLoadPackage {
                     || !currentModuleFingerprint.equals(cachedModuleFingerprint);
 
             if (shouldRefreshCache) {
-                log("检测到版本变化，开始重新查找方法...");
-                hookFinder = new HookFinder();
-                if (!runDexKitSearch(packageCodePath, currentAppVersion)) {
-                    log("刷新缓存失败，继续使用旧缓存");
-                }
+                log("缓存失效，等待前台页面自动扫描；本次不安装业务Hook");
+                new com.fuck.fanqie.hooks.InitialScanHooks(progress ->
+                        runDexKitSearch(packageCodePath, currentAppVersion, progress)).install();
             } else {
-                log("版本无变化，使用缓存方法");
+                log("版本无变化，使用缓存方法，不创建DexKit");
+                hookApplier.applyHooks();
             }
-
-            hookApplier.applyHooks();
         } catch (Throwable throwable) {
+            isInitialized = false;
             log("初始化失败: " + throwable.getMessage());
             XposedBridge.log(throwable);
         }
@@ -141,20 +130,24 @@ public class MainHook implements IXposedHookLoadPackage {
         }
     }
 
-    private boolean runDexKitSearch(String packageCodePath, long currentAppVersion) {
+    private java.util.List<String> runDexKitSearch(String packageCodePath, long currentAppVersion,
+                                                  TargetScanResult.Progress progress) throws Throwable {
+        log("后台扫描开始，thread=" + Thread.currentThread().getName());
+        progress.log("加载扫描引擎…");
+        System.loadLibrary("dexkit");
+        TargetScanResult scanResult;
         try (DexKitBridge bridge = DexKitBridge.create(packageCodePath)) {
-            TargetScanResult scanResult = hookFinder.findTargets(bridge);
-            boolean published = targetRepository.publishFreshScan(currentAppVersion, scanResult);
-            if (published) {
-                log("DexKit 方法查找并发布完成");
-            } else {
-                log("DexKit 方法查找完成，但发布缓存失败");
-            }
-            return published;
-        } catch (Throwable throwable) {
-            log("DexKit 查找失败: " + throwable.getMessage());
-            return false;
+            scanResult = new HookFinder().findTargets(bridge, progress);
+            progress.log("释放扫描资源…");
+            log("目标查找完成，正在后台释放DexKit资源");
         }
+        // 必须先关闭原生扫描器再发布，关闭失败不能留下本轮成功缓存。
+        progress.log("保存扫描缓存…");
+        if (!targetRepository.publishFreshScan(currentAppVersion, scanResult)) {
+            throw new IllegalStateException("扫描结果为空或缓存保存失败");
+        }
+        log("后台扫描、释放及发布完成，等待重启，targets=" + scanResult.size());
+        return scanResult.failures();
     }
 
     private static void log(String message) {

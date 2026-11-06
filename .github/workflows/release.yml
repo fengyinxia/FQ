@@ -37,6 +37,24 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
+      - name: Verify host callback names survive R8
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapping="app/build/outputs/mapping/release/mapping.txt"
+          if [[ ! -s "$mapping" ]]; then
+            echo "::error::Release R8 mapping is missing or empty"
+            exit 1
+          fi
+          for callback in Function0 Function1; do
+            expected="kotlin.jvm.functions.${callback} -> kotlin.jvm.functions.${callback}:"
+            if ! grep -Fqx "$expected" "$mapping"; then
+              echo "::error::Host callback ${callback} was renamed or removed by R8; refusing to publish"
+              exit 1
+            fi
+            echo "Verified host callback: ${callback}"
+          done
+
       - name: Rename APK with tag
         run: mv app/build/outputs/apk/release/app-release.apk "FuckTomato-${{ github.ref_name }}.apk"
 

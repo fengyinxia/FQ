@@ -36,7 +36,8 @@ public final class SettingsEntryHooks extends BaseHook {
     public void apply() {
         try {
             pageCreate = targets.method(HookTargets.KEY_SETTINGS_PAGE_CREATE_METHOD);
-            if (!PluginSettingsPage.install(pageCreate)) {
+            if (!PluginSettingsPage.install(pageCreate, targets.method(HookTargets.KEY_SKIN_NIGHT_METHOD),
+                    targets.method(HookTargets.KEY_SKIN_CHANGE_METHOD))) {
                 return;
             }
             Class<?> item = targets.type(HookTargets.KEY_SETTINGS_ITEM_CLASS);

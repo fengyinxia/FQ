@@ -7,7 +7,6 @@ public final class HookTargets {
     public static final String KEY_AD_FREE_METHOD = "method_ad_free";
     public static final String KEY_AUTHOR_SAY_METHOD = "method_author_say";
     public static final String KEY_BOOKSHELF_BANNER_RESPONSE_METHOD = "method_bookshelf_banner_response";
-    public static final String KEY_BOOK_NAME_CLICK_METHOD = "method_book_name_click";
     public static final String KEY_CHAPTER_END_CONTROL_METHOD = "method_chapter_end_control";
     public static final String KEY_CHAPTER_END_HOT_COMMENT_METHOD = "method_chapter_end_hot_comment";
     public static final String KEY_KMP_AUTHOR_SAY_GATE_METHOD = "method_kmp_author_say_gate";
@@ -55,7 +54,13 @@ public final class HookTargets {
     public static final String KEY_SETTINGS_KMP_INSERT_METHOD = "method_settings_kmp_insert";
     public static final String KEY_SETTINGS_ITEM_CLASS = "class_settings_item";
     public static final String KEY_SETTINGS_PAGE_CREATE_METHOD = "method_settings_page_create";
+    public static final String KEY_SKIN_NIGHT_METHOD = "method_skin_night";
+    public static final String KEY_SKIN_CHANGE_METHOD = "method_skin_change";
     public static final String KEY_SEARCH_BAR_METHOD = "method_search_bar";
+    public static final String KEY_SEARCH_RESPONSE_METHOD = "method_search_response";
+    public static final String KEY_SEARCH_TABS_METHOD = "method_search_tabs";
+    public static final String KEY_SEARCH_PARSE_METHOD = "method_search_parse";
+    public static final String KEY_SEARCH_AUTO_FILL_METHOD = "method_search_auto_fill";
     public static final String KEY_SEARCH_CUE_LIST_METHOD = "method_search_cue_list";
     public static final String KEY_SEARCH_CUE_KMP_LIST_METHOD = "method_search_cue_kmp_list";
     public static final String KEY_SPLASH_K1_METHOD = "method_splash_k1";
@@ -72,7 +77,6 @@ public final class HookTargets {
             KEY_AD_FREE_METHOD,
             KEY_AUTHOR_SAY_METHOD,
             KEY_BOOKSHELF_BANNER_RESPONSE_METHOD,
-            KEY_BOOK_NAME_CLICK_METHOD,
             KEY_CHAPTER_END_CONTROL_METHOD,
             KEY_CHAPTER_END_HOT_COMMENT_METHOD,
             KEY_KMP_AUTHOR_SAY_GATE_METHOD,
@@ -120,7 +124,13 @@ public final class HookTargets {
             KEY_SETTINGS_KMP_INSERT_METHOD,
             KEY_SETTINGS_ITEM_CLASS,
             KEY_SETTINGS_PAGE_CREATE_METHOD,
+            KEY_SKIN_NIGHT_METHOD,
+            KEY_SKIN_CHANGE_METHOD,
             KEY_SEARCH_BAR_METHOD,
+            KEY_SEARCH_RESPONSE_METHOD,
+            KEY_SEARCH_TABS_METHOD,
+            KEY_SEARCH_PARSE_METHOD,
+            KEY_SEARCH_AUTO_FILL_METHOD,
             KEY_SEARCH_CUE_LIST_METHOD,
             KEY_SEARCH_CUE_KMP_LIST_METHOD,
             KEY_SPLASH_K1_METHOD,

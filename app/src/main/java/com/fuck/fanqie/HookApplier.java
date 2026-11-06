@@ -15,6 +15,7 @@ public class HookApplier {
     private final AdHooks adHooks;
     private final BottomTabHooks bottomTabHooks;
     private final UIHooks uiHooks;
+    private final com.fuck.fanqie.hooks.SearchResultHooks searchResultHooks;
     private final DownloadHooks downloadHooks;
     private final SettingsEntryHooks settingsEntryHooks;
 
@@ -24,6 +25,7 @@ public class HookApplier {
         adHooks = new AdHooks(cachedTargets, hostClassLoader);
         bottomTabHooks = new BottomTabHooks(cachedTargets, hostClassLoader);
         uiHooks = new UIHooks(cachedTargets, hostClassLoader);
+        searchResultHooks = new com.fuck.fanqie.hooks.SearchResultHooks(cachedTargets);
         downloadHooks = new DownloadHooks(cachedTargets, hostClassLoader);
         settingsEntryHooks = new SettingsEntryHooks(cachedTargets, hostClassLoader);
     }
@@ -36,6 +38,7 @@ public class HookApplier {
         install("广告", () -> adHooks.apply());
         install("底栏", () -> bottomTabHooks.apply());
         install("界面", () -> uiHooks.apply());
+        install("搜索结果", () -> searchResultHooks.apply());
         install("下载", () -> downloadHooks.apply());
     }
 

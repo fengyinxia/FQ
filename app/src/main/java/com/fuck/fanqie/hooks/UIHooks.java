@@ -64,15 +64,22 @@ public class UIHooks extends BaseHook {
                 return;
             }
             final Method settingsClick = cachedTargets.method(HookTargets.KEY_MY_PAGE_SETTINGS_CLICK_METHOD);
+            MyPageViews.trackLayouts();
             XposedBridge.hookMethod(method, new XC_MethodHook() {
                 @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    MyPageViews.beginContent();
+                }
+
+                @Override
                 protected void afterHookedMethod(MethodHookParam param) {
+                    Integer layout = MyPageViews.finishContent(param.getResult());
                     if (!(param.getResult() instanceof View)) {
                         return;
                     }
                     final View root = (View) param.getResult();
                     // 仅在当前页面内按稳定图标识别两个按钮，不读混淆资源名。
-                    final View[] header = MyPageViews.findHeader(root);
+                    final View[] header = MyPageViews.findHeader(root, layout);
                     final View.OnClickListener settingsListener = createMyPageSettingsListener(settingsClick, param.thisObject);
                     final int settingsIcon = root.getResources().getIdentifier(
                             "skin_mine_icon_setting_new_light", "drawable", "com.dragon.read");
@@ -457,8 +464,12 @@ public class UIHooks extends BaseHook {
                     try {
                         Object card = param.args[0];
                         Object cardType = XposedHelpers.getObjectField(card, "a");
-                        if (!(cardType instanceof Enum)
-                                || !"QUICK_ACCESS".equals(((Enum<?>) cardType).name())) {
+                        if (!(cardType instanceof Enum)) {
+                            return;
+                        }
+                        String container = ((Enum<?>) cardType).name();
+                        // 原生聚合器还会单独转换 COMMON：预约、点赞、小游戏等不在 QUICK_ACCESS 内。
+                        if (!"QUICK_ACCESS".equals(container) && !"COMMON".equals(container)) {
                             return;
                         }
                         Object value = XposedHelpers.getObjectField(card, "b");
@@ -478,7 +489,7 @@ public class UIHooks extends BaseHook {
                                 kept.add(item);
                             }
                         }
-                        XposedBridge.log("FQHook+RemoveCard: 快捷功能候选=" + items.size()
+                        XposedBridge.log("FQHook+RemoveCard: " + container + " 快捷功能候选=" + items.size()
                                 + "，允许=" + kept.size());
                         if (kept.size() != items.size()) {
                             XposedHelpers.setObjectField(card, "b", kept);

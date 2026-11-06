@@ -38,11 +38,25 @@ import de.robv.android.xposed.XposedBridge;
 /** 宿主内单页设置；多选使用选择框，保存配置与运行配置分离。 */
 final class PluginSettingsPage {
     private static final String EXTRA_PAGE = "com.fuck.fanqie.extra.PLUGIN_SETTINGS_PAGE";
+    private static Method nightMode;
+    private static boolean lifecycleInstalled;
+    private static final Map<Activity, Boolean> pageThemes = Collections.synchronizedMap(new java.util.WeakHashMap<Activity, Boolean>());
 
     private PluginSettingsPage() {
     }
 
-    static boolean install(Method create) {
+    static boolean install(Method create, Method night, Method change) {
+        nightMode = night;
+        if (change != null) {
+            XposedBridge.hookMethod(change, new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    if (param.hasThrowable()) return;
+                    Activity[] pages;
+                    synchronized (pageThemes) { pages = pageThemes.keySet().toArray(new Activity[0]); }
+                    for (Activity page : pages) page.runOnUiThread(() -> refreshTheme(page));
+                }
+            });
+        }
         if (create == null || Modifier.isStatic(create.getModifiers())
                 || !Activity.class.isAssignableFrom(create.getDeclaringClass())
                 || create.getReturnType() != void.class
@@ -64,6 +78,7 @@ final class PluginSettingsPage {
                 // 保留原 onCreate 初始化及生命周期，避免跳过 super 或留下未初始化宿主字段。
                 // 只替换带独立标记的新实例；原设置列表仍保留在任务栈下一层。
                 try {
+                    installLifecycle(activity.getApplication());
                     render(activity);
                 } catch (Throwable throwable) {
                     HookUtils.logError("FQHook+Settings: 设置页面创建失败: ", throwable);
@@ -98,9 +113,63 @@ final class PluginSettingsPage {
         return intent != null && intent.getBooleanExtra(EXTRA_PAGE, false);
     }
 
-    private static void render(Activity activity) {
-        boolean dark = (activity.getResources().getConfiguration().uiMode
+    private static boolean isDark(Activity activity) {
+        if (nightMode != null) {
+            try { return Boolean.TRUE.equals(nightMode.invoke(null)); }
+            catch (ReflectiveOperationException error) { HookUtils.logError("FQHook+Settings: 宿主主题读取失败: ", error); }
+        }
+        return (activity.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private static void installLifecycle(android.app.Application application) {
+        if (lifecycleInstalled) return;
+        lifecycleInstalled = true;
+        application.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {
+            @Override public void onActivityResumed(Activity activity) { refreshTheme(activity); }
+            @Override public void onActivityDestroyed(Activity activity) { pageThemes.remove(activity); }
+            @Override public void onActivityCreated(Activity activity, android.os.Bundle state) { }
+            @Override public void onActivityStarted(Activity activity) { }
+            @Override public void onActivityPaused(Activity activity) { }
+            @Override public void onActivityStopped(Activity activity) { }
+            @Override public void onActivitySaveInstanceState(Activity activity, android.os.Bundle state) { }
+        });
+    }
+
+    private static void refreshTheme(Activity activity) {
+        Boolean old = pageThemes.get(activity);
+        if (old == null || !isPluginPage(activity) || activity.isFinishing() || activity.isDestroyed()
+                || old == isDark(activity)) return;
+        try {
+            View content = activity.findViewById(android.R.id.content);
+            ScrollView scroll = findScroll(content);
+            int position = scroll == null ? 0 : scroll.getScrollY();
+            render(activity);
+            ScrollView next = findScroll(activity.findViewById(android.R.id.content));
+            if (next != null) next.post(() -> next.scrollTo(0, position));
+        } catch (Throwable error) { HookUtils.logError("FQHook+Settings: 主题刷新失败: ", error); }
+    }
+
+    private static ScrollView findScroll(View view) {
+        if (view instanceof ScrollView) return (ScrollView) view;
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                ScrollView result = findScroll(group.getChildAt(i));
+                if (result != null) return result;
+            }
+        }
+        return null;
+    }
+
+    private static void render(Activity activity) {
+        boolean dark = isDark(activity);
+        // 只调整带模块标记的独立SettingsActivity，不改宿主全局Theme或夜间配置。
+        // 原生弹窗、Switch及底栏编辑器也从此Activity继承一致主题。
+        activity.setTheme(dark ? android.R.style.Theme_Material_NoActionBar
+                : android.R.style.Theme_Material_Light_NoActionBar);
+        pageThemes.put(activity, dark);
+        XposedBridge.log("FQHook+Settings: 设置页主题=" + (dark ? "dark" : "light"));
         int background = themeColor(activity, android.R.attr.colorBackground,
                 dark ? Color.rgb(24, 24, 24) : Color.rgb(250, 250, 250));
         int primary = themeColor(activity, android.R.attr.textColorPrimary, dark ? Color.WHITE : Color.BLACK);
@@ -164,7 +233,7 @@ final class PluginSettingsPage {
         XposedBridge.log("FQHook+Settings: 已打开功能设置页面");
     }
 
-    private static void restartHost(Activity activity, View button) {
+    static void restartHost(Activity activity, View button) {
         if (!button.isEnabled()) return;
         android.os.Handler handler = new android.os.Handler(Looper.getMainLooper());
         boolean[] pending = {true};
@@ -309,7 +378,7 @@ final class PluginSettingsPage {
         List<DynamicItems.Item> items = DynamicItems.list(option.key);
         if (items.isEmpty()) {
             new AlertDialog.Builder(activity).setTitle(option.title)
-                    .setMessage("请浏览" + ("mine".equals(option.key) ? "我的页" : "top_tabs".equals(option.key) ? "书城顶部频道" : "书城推荐") + "后重试")
+                    .setMessage("请浏览" + ("mine".equals(option.key) ? "我的页" : DynamicItems.SEARCH.equals(option.key) ? "搜索结果页" : "top_tabs".equals(option.key) ? "书城顶部频道" : "书城推荐") + "后重试")
                     .setPositiveButton("知道了", null).show();
             return;
         }

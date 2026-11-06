@@ -43,10 +43,12 @@ public abstract class BaseFinder {
     }
 
     protected void log(String message) {
+        scanResult.report(message);
         XposedBridge.log("FQHook+" + getClass().getSimpleName() + ": " + message);
     }
 
     protected void log(String message, Throwable throwable) {
+        scanResult.fail(message + "：" + throwable.getClass().getSimpleName());
         XposedBridge.log("FQHook+" + getClass().getSimpleName() + ": " + message + ": " + throwable.getMessage());
         XposedBridge.log(throwable);
     }

@@ -24,7 +24,7 @@ public final class PluginSettings {
             this.keys = keys;
             this.labels = labels;
         }
-        public boolean dynamic() { return "recommend".equals(key) || "mine".equals(key) || "top_tabs".equals(key); }
+        public boolean dynamic() { return "recommend".equals(key) || "mine".equals(key) || "top_tabs".equals(key) || DynamicItems.SEARCH.equals(key); }
         public boolean navigation() { return "bottom".equals(key); }
         public boolean multiple() { return navigation() || dynamic() || keys.length > 0; }
     }
@@ -40,6 +40,7 @@ public final class PluginSettings {
         single(list, "内容屏蔽", "banner", "书架短剧 Banner");
         single(list, "内容屏蔽", "popup", "运营弹窗");
         multi(list, "内容屏蔽", "recommend", "推荐流精简", new String[0], new String[0]);
+        multi(list, "内容屏蔽", DynamicItems.SEARCH, "搜索结果过滤", new String[0], new String[0]);
         multi(list, "UI 净化", "mine", "我的页", new String[0], new String[0]);
         multi(list, "UI 净化", "search", "搜索净化",
                 new String[]{"search_mine", "search_words", "search_page"},

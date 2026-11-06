@@ -25,6 +25,7 @@ public final class DynamicItems {
     public static final String MINE_FEED_ID = "component/recommend_feed";
     public static final String RECOMMEND = "recommend";
     public static final String TOP_TABS = "top_tabs";
+    public static final String SEARCH = "search_results";
     private static final String FILE = "fq_dynamic_items";
     private static final int LIMIT = 384;
     public static final class Item {
@@ -136,6 +137,15 @@ public final class DynamicItems {
         Boolean blocked = running.get(key);
         return Boolean.TRUE.equals(blocked);
     }
+    public static synchronized boolean anyBlocked(String area) {
+        for (Map.Entry<String, Boolean> entry : running.entrySet()) {
+            if (entry.getKey().startsWith(area + "/") && Boolean.TRUE.equals(entry.getValue())) return true;
+        }
+        return false;
+    }
+    public static synchronized boolean blocked(String area, String id) {
+        return Boolean.TRUE.equals(running.get(key(area, id)));
+    }
     public static synchronized List<Item> list(String area) {
         List<Item> result = new ArrayList<>();
         for (Item item : items.values()) if (item.area.equals(area)) result.add(item);
@@ -179,7 +189,7 @@ public final class DynamicItems {
                 && id.length() <= 180 && id.matches("[A-Za-z0-9_:/.-]+");
     }
     private static boolean validArea(String area) {
-        return MINE.equals(area) || RECOMMEND.equals(area) || TOP_TABS.equals(area);
+        return MINE.equals(area) || RECOMMEND.equals(area) || TOP_TABS.equals(area) || SEARCH.equals(area);
     }
     /** 只刷新目录元数据；失败不撤销独立保存的屏蔽选择，也不阻止宿主重启。 */
     public static synchronized boolean flushPending() {
