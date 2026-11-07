@@ -319,7 +319,7 @@ final class PluginSettingsPage {
                 updateStatus(status);
             }));
         } else if (option.dynamic()) {
-            TextView summary = text(activity, dynamicSummary(option.key), 13, secondary);
+            TextView summary = text(activity, dynamicSummary(option), 13, secondary);
             row.addView(summary, new LinearLayout.LayoutParams(-2, -2));
             row.setFocusable(true);
             row.setContentDescription(option.title);
@@ -367,36 +367,50 @@ final class PluginSettingsPage {
         card.addView(divider, new LinearLayout.LayoutParams(-1, dp(activity, 1)));
     }
 
-    private static String dynamicSummary(String area) {
-        List<DynamicItems.Item> items = DynamicItems.list(area);
+    private static String dynamicSummary(PluginSettings.Option option) {
+        List<DynamicItems.Item> items = DynamicItems.list(option.key);
+        Map<String, Boolean> saved = PluginSettings.saved();
         int selected = 0;
+        for (String key : option.keys) if (saved.get(key)) selected++;
         for (DynamicItems.Item item : items) if (DynamicItems.selected(item)) selected++;
-        return items.isEmpty() ? "暂未发现  ›" : selected + "/" + items.size() + "  ›";
+        int total = option.keys.length + items.size();
+        return total == 0 ? "暂未发现  ›" : selected + "/" + total + "  ›";
     }
 
     private static void showDynamic(Activity activity, PluginSettings.Option option, TextView summary, TextView status) {
         List<DynamicItems.Item> items = DynamicItems.list(option.key);
-        if (items.isEmpty()) {
+        if (items.isEmpty() && option.keys.length == 0) {
             new AlertDialog.Builder(activity).setTitle(option.title)
-                    .setMessage("请浏览" + ("mine".equals(option.key) ? "我的页" : DynamicItems.SEARCH.equals(option.key) ? "搜索结果页" : "top_tabs".equals(option.key) ? "书城顶部频道" : "书城推荐") + "后重试")
+                    .setMessage("请浏览" + ("mine".equals(option.key) ? "我的页" : DynamicItems.SEARCH.equals(option.key) ? "搜索结果页" : DynamicItems.BANNERS.equals(option.key) ? "书架，等待 Banner 数据加载" : DynamicItems.POPUPS.equals(option.key) ? "宿主相关页面，等待弹窗申请（隐私及功能性弹窗不纳入控制）" : "top_tabs".equals(option.key) ? "书城顶部频道" : "书城推荐") + "后重试")
                     .setPositiveButton("知道了", null).show();
             return;
         }
-        String[] labels = new String[items.size()];
-        boolean[] selected = new boolean[items.size()];
+        int fixedCount = option.keys.length;
+        String[] labels = new String[fixedCount + items.size()];
+        boolean[] selected = new boolean[labels.length];
+        Map<String, Boolean> saved = PluginSettings.saved();
+        for (int i = 0; i < fixedCount; i++) {
+            labels[i] = option.labels[i];
+            selected[i] = saved.get(option.keys[i]);
+        }
         for (int i = 0; i < items.size(); i++) {
-            labels[i] = items.get(i).display();
-            selected[i] = DynamicItems.selected(items.get(i));
+            labels[fixedCount + i] = items.get(i).display();
+            selected[fixedCount + i] = DynamicItems.selected(items.get(i));
         }
         new AlertDialog.Builder(activity).setTitle(option.title + " · 勾选屏蔽")
                 .setMultiChoiceItems(labels, selected, (dialog, which, checked) -> selected[which] = checked)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("保存", (dialog, which) -> {
                     try {
+                        if (fixedCount > 0) {
+                            Map<String, Boolean> changes = new HashMap<>();
+                            for (int i = 0; i < fixedCount; i++) changes.put(option.keys[i], selected[i]);
+                            PluginSettings.save(changes);
+                        }
                         Set<String> blocked = new HashSet<>();
-                        for (int i = 0; i < items.size(); i++) if (selected[i]) blocked.add(items.get(i).id);
-                        DynamicItems.save(option.key, items, blocked);
-                        summary.setText(dynamicSummary(option.key));
+                        for (int i = 0; i < items.size(); i++) if (selected[fixedCount + i]) blocked.add(items.get(i).id);
+                        if (!items.isEmpty()) DynamicItems.save(option.key, items, blocked);
+                        summary.setText(dynamicSummary(option));
                         updateStatus(status);
                         XposedBridge.log("FQHook+Dynamic: 已保存 " + option.key + " 屏蔽选择，数量=" + blocked.size());
                     } catch (Throwable throwable) {

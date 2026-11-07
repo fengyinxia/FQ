@@ -24,7 +24,7 @@ public final class PluginSettings {
             this.keys = keys;
             this.labels = labels;
         }
-        public boolean dynamic() { return "recommend".equals(key) || "mine".equals(key) || "top_tabs".equals(key) || DynamicItems.SEARCH.equals(key); }
+        public boolean dynamic() { return "recommend".equals(key) || "mine".equals(key) || "top_tabs".equals(key) || DynamicItems.SEARCH.equals(key) || DynamicItems.BANNERS.equals(key) || DynamicItems.POPUPS.equals(key); }
         public boolean navigation() { return "bottom".equals(key); }
         public boolean multiple() { return navigation() || dynamic() || keys.length > 0; }
     }
@@ -37,29 +37,26 @@ public final class PluginSettings {
     static {
         List<Option> list = new ArrayList<>();
         single(list, "内容屏蔽", "ads", "广告拦截");
-        single(list, "内容屏蔽", "banner", "书架短剧 Banner");
-        single(list, "内容屏蔽", "popup", "运营弹窗");
+        multi(list, "内容屏蔽", DynamicItems.BANNERS, "Banner控制", new String[0], new String[0]);
+        multi(list, "内容屏蔽", DynamicItems.POPUPS, "弹窗控制", new String[0], new String[0]);
         multi(list, "内容屏蔽", "recommend", "推荐流精简", new String[0], new String[0]);
         multi(list, "内容屏蔽", DynamicItems.SEARCH, "搜索结果过滤", new String[0], new String[0]);
-        multi(list, "UI 净化", "mine", "我的页", new String[0], new String[0]);
+        multi(list, "UI 净化", "mine", "我的页",
+                new String[]{"search_mine", "red_dot"}, new String[]{"搜索入口", "红点"});
         multi(list, "UI 净化", "search", "搜索净化",
-                new String[]{"search_mine", "search_words", "search_page"},
-                new String[]{"隐藏我的页搜索入口", "清理搜索推荐词", "隐藏搜索页热榜与推荐入口"});
+                new String[]{"search_words", "search_page"},
+                new String[]{"清理搜索推荐词", "隐藏搜索页热榜与推荐入口"});
+        multi(list, "UI 净化", "original_title", "强制原书名",
+                new String[]{"cover_title", "original_recommend", "original_search"},
+                new String[]{"封面", "推荐", "搜索"});
         multi(list, "UI 净化", "content", "内容净化",
-                new String[]{"cover_title", "cover_comment", "chapter"},
-                new String[]{"封面使用完整书名文字", "隐藏封面热门评论（含 EPUB）", "隐藏章末社区区域（作者说、讨论、礼物）"});
-        single(list, "UI 净化", "red_dot", "隐藏红点提示");
+                new String[]{"cover_comment", "chapter"},
+                new String[]{"隐藏封面热门评论（含 EPUB）", "隐藏章末社区区域（作者说、讨论、礼物）"});
         multi(list, "UI 净化", "top_tabs", "顶部频道精简", new String[0], new String[0]);
         single(list, "UI 净化", "sidebar", "侧栏入口改为设置");
         single(list, "拓展", "download", "下载与导出");
         multi(list, "拓展", "bottom", "底栏自定义", new String[0], new String[0]);
-        single(list, "拓展", "reader_back", "阅读器返回行为");
         single(list, "拓展", "update", "屏蔽宿主更新检查");
-        single(list, "拓展", "ab", "阻止 AB 配置更新");
-        multi(list, "拓展", "report", "上报控制",
-                new String[]{"report_behavior", "report_crash"}, new String[]{"拦截点击与行为上报", "拦截崩溃上报"});
-        single(list, "拓展", "push", "阻止推送进程");
-        single(list, "拓展", "forest", "拦截 Forest 后台任务");
         OPTIONS = Collections.unmodifiableList(list);
         Set<String> keys = new LinkedHashSet<>();
         for (Option option : OPTIONS) {
@@ -68,7 +65,7 @@ public final class PluginSettings {
         }
         // 旧键只用于迁移；不再作为固定多选项展示。
         Collections.addAll(keys, "rec_audio", "rec_hunger", "rec_video", "rec_comic", "rec_other",
-                "mine_wallet", "mine_vip", "mine_quick", "top_tabs",
+                "banner", "mine_wallet", "mine_vip", "mine_quick", "top_tabs",
                 "bottom_category", "bottom_hide_video", "bottom_order", "startup", "lucky", "mine_feed");
         KEYS = Collections.unmodifiableSet(keys);
     }
@@ -113,8 +110,9 @@ public final class PluginSettings {
                 continue;
             }
             invalidKeys.remove(key);
-            // 缺项维持既有行为；单项损坏不影响其他配置或恢复入口。
-            result.put(key, value == null || (Boolean) value);
+            // 封面沿用旧选择；新增推荐/搜索原名不在升级时自动开启。
+            boolean defaultValue = !"original_recommend".equals(key) && !"original_search".equals(key);
+            result.put(key, value == null ? defaultValue : (Boolean) value);
         }
         return result;
     }

@@ -24,13 +24,24 @@ public class FeatureFinder extends BaseFinder {
     public void find(DexKitBridge bridge) {
         findSplashK1Method(bridge);
         findUpdateMethod(bridge);
-        findAbtestMethod(bridge);
         findChapterControlMethod(bridge);
         findKmpChapterControlMethods(bridge);
         findCoverTitleRenderMethods(bridge);
     }
 
     private void findCoverTitleRenderMethods(DexKitBridge bridge) {
+        try {
+            List<MethodData> sources = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().modifiers(Modifier.STATIC)
+                            .paramTypes("com.dragon.read.rpc.model.ApiBookInfo")
+                            .returnType("com.dragon.read.reader.bookcover.BookCoverInfo")
+                            .addUsingField("Lcom/dragon/read/rpc/model/ApiBookInfo;->bookName:Ljava/lang/String;", UsingType.Read)
+                            .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->bookName:Ljava/lang/String;", UsingType.Write)));
+            if (sources.size() == 1) cacheMethod(HookTargets.KEY_COVER_ORIGINAL_SOURCE_METHOD, sources.get(0));
+            else log("封面原书名来源无法唯一定位，候选数=" + sources.size());
+        } catch (Throwable error) {
+            log("查找封面原书名来源失败", error);
+        }
         try {
             List<MethodData> textMethods = bridge.findMethod(FindMethod.create()
                     .searchPackages(new String[]{"com.dragon.read.reader.bookcover"})
@@ -310,18 +321,4 @@ public class FeatureFinder extends BaseFinder {
         }
     }
 
-    private void findAbtestMethod(DexKitBridge bridge) {
-        try {
-            MethodData abtestMethod = first(bridge.findMethod(
-                    FindMethod.create().matcher(
-                            MethodMatcher.create()
-                                    .paramTypes(new String[]{"com.dragon.read.rpc.model.CommonAbResultData"})
-                                    .usingStrings(new String[]{"key_user_activity_level"})
-                    )
-            ));
-            cacheMethod(HookTargets.KEY_ABTEST_METHOD, abtestMethod);
-        } catch (Throwable throwable) {
-            log("查找 abtest 方法失败", throwable);
-        }
-    }
 }

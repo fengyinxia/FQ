@@ -173,11 +173,11 @@ public final class SettingsEntryHooks extends BaseHook {
                     return null;
                 });
         click.set(entry, listener);
-        // 双列表保持一致；第二次插入失败时撤回第一次，防止残缺设置行。
-        int index = all.size();
-        all.add(entry);
+        // 总列表和所属分组均置顶；第二次插入失败时撤回第一次，防止残缺设置行。
+        int index = 0;
+        all.add(index, entry);
         try {
-            group.add(entry);
+            group.add(0, entry);
         } catch (RuntimeException failure) {
             all.remove(index);
             throw failure;

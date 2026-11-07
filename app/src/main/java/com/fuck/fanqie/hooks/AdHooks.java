@@ -1,7 +1,5 @@
 package com.fuck.fanqie.hooks;
 
-import android.view.View;
-
 import com.fuck.fanqie.HookTargets;
 import com.fuck.fanqie.PluginSettings;
 import com.fuck.fanqie.cache.CachedTargets;
@@ -28,9 +26,7 @@ public class AdHooks extends BaseHook {
     public void apply() {
         applyAdHooks();
         applyLuckyDogHooks();
-        applyHideBookshelfRelateVideoBannerHooks();
-        applyFloatingViewHooks();
-        applyClickAgentHooks();
+        applyBookshelfBannerHooks();
     }
 
     public void applyAdHooks() {
@@ -128,8 +124,7 @@ public class AdHooks extends BaseHook {
         }
     }
 
-    public void applyHideBookshelfRelateVideoBannerHooks() {
-        if (!PluginSettings.enabled("banner")) return;
+    public void applyBookshelfBannerHooks() {
         for (String key : new String[]{HookTargets.KEY_BOOKSHELF_BANNER_RESPONSE_METHOD,
                 HookTargets.KEY_BOOKSHELF_BANNER_LIST_METHOD, HookTargets.KEY_BOOKSHELF_BANNER_FIRST_METHOD}) {
             applyBookshelfBannerConsumer(key);
@@ -172,7 +167,7 @@ public class AdHooks extends BaseHook {
                     ArrayList<Object> filtered = new ArrayList<>(original.size());
                     int removedCount = 0;
                     for (Object item : original) {
-                        if (isRelateVideoBanner(item)) {
+                        if (isBlockedBanner(item)) {
                             removedCount++;
                             continue;
                         }
@@ -182,7 +177,7 @@ public class AdHooks extends BaseHook {
                         return;
                     }
                     cachedBannerDataField.set(data, filtered);
-                    XposedBridge.log("FQHook+BookshelfBanner: 已过滤书架短剧 Banner " + removedCount + " 条");
+                    XposedBridge.log("FQHook+BookshelfBanner: 已按选择过滤书架 Banner " + removedCount + " 条");
                 }
 
                 private Object readField(Object target, String fieldName, boolean isResponseField) throws Throwable {
@@ -207,7 +202,7 @@ public class AdHooks extends BaseHook {
                     return field;
                 }
 
-                private boolean isRelateVideoBanner(Object item) throws Throwable {
+                private boolean isBlockedBanner(Object item) throws Throwable {
                     if (item == null) {
                         return false;
                     }
@@ -218,7 +213,11 @@ public class AdHooks extends BaseHook {
                         cachedBannerTypeField = bannerTypeField;
                     }
                     Object bannerType = bannerTypeField.get(item);
-                    return bannerType instanceof Enum<?> && "RelateVideo".equals(((Enum<?>) bannerType).name());
+                    if (!(bannerType instanceof Enum<?>)) return false;
+                    String type = ((Enum<?>) bannerType).name();
+                    return com.fuck.fanqie.DynamicItems.observe(com.fuck.fanqie.DynamicItems.BANNERS,
+                            "type/" + type, ControlItemLabels.banner(type),
+                            "RelateVideo".equals(type) && PluginSettings.enabled("banner"));
                 }
             });
             XposedBridge.log("FQHook+BookshelfBanner: 已安装响应过滤 " + key + ": " + bannerResponseMethod);
@@ -227,46 +226,4 @@ public class AdHooks extends BaseHook {
         }
     }
 
-    public void applyFloatingViewHooks() {
-        if (!PluginSettings.enabled("popup")) return;
-        Method popMethod = cachedTargets.method(HookTargets.KEY_POP_METHOD);
-        if (popMethod != null) {
-            XposedBridge.hookMethod(popMethod, XC_MethodReplacement.returnConstant(Boolean.TRUE));
-        }
-
-        try {
-            XposedHelpers.findAndHookMethod(
-                    "com.dragon.read.pop.absettings.a",
-                    hostClassLoader,
-                    "a",
-                    XC_MethodReplacement.returnConstant(Boolean.TRUE)
-            );
-        } catch (Throwable throwable) {
-            HookUtils.logError("FQHook+applyFloatingViewHooks: Hook com.dragon.read.pop.absettings.a 失败: ", throwable);
-        }
-        XposedBridge.log("FQHook+applyFloatingViewHooks: 已禁用弹窗");
-    }
-
-    public void applyClickAgentHooks() {
-        if (!PluginSettings.enabled("report_behavior")) return;
-        try {
-            XposedHelpers.findAndHookMethod(
-                    "com.bytedance.apm.agent.v2.instrumentation.ClickAgent",
-                    hostClassLoader,
-                    "onTabChanged",
-                    String.class,
-                    XC_MethodReplacement.returnConstant(null)
-            );
-            XposedHelpers.findAndHookMethod(
-                    "com.bytedance.apm.agent.v2.instrumentation.ClickAgent",
-                    hostClassLoader,
-                    "onClick",
-                    View.class,
-                    XC_MethodReplacement.returnConstant(null)
-            );
-            XposedBridge.log("FQHook+ClickAgent: 已禁用字节跳动点击统计");
-        } catch (Throwable throwable) {
-            XposedBridge.log("FQHook+ClickAgent: Hook失败: " + throwable.getMessage());
-        }
-    }
 }

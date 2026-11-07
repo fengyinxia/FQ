@@ -425,20 +425,7 @@ public class UIHooks extends BaseHook {
     }
 
     public void applyRedDotHooks() {
-        if (!PluginSettings.enabled("red_dot")) return;
-        Method method = cachedTargets.method(HookTargets.KEY_RED_DOT_METHOD);
-        if (method == null) {
-            return;
-        }
-        XposedBridge.hookMethod(method, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                if (param.args.length > 0) {
-                    param.args[0] = Boolean.FALSE;
-                    XposedBridge.log("FQHook+RedDot: 已禁用红点显示");
-                }
-            }
-        });
+        new MineRedDotHooks(cachedTargets).apply();
     }
 
     public void applyRemoveMyPageExtraCardHooks() {
@@ -612,6 +599,14 @@ public class UIHooks extends BaseHook {
                         }
                         if (!recommend) return;
                         Object cell = param.args[0];
+                        if (PluginSettings.enabled("original_recommend") || PluginSettings.enabled("cover_title")) {
+                            try {
+                                cell = OriginalBookTitles.cell(cell, PluginSettings.enabled("original_recommend"));
+                                param.args[0] = cell;
+                            } catch (Throwable error) {
+                                HookUtils.logError("FQHook+OriginalTitle: 推荐展示副本处理失败，保留原名规则前数据: ", error);
+                            }
+                        }
                         String reason = recommendFilterHelper.filterTree(cell, true);
                         if (reason != null) {
                             param.setResult(new ArrayList<>());
@@ -688,9 +683,38 @@ public class UIHooks extends BaseHook {
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+applySearchWordHooks: 构造路径 Hook 失败: ", throwable);
         }
+        hookSearchCueDisplay();
         // 运行时接收列表再清理，覆盖 JSON、缓存及 KMP 转换，不依赖构造器命中。
         hookSearchCueList(HookTargets.KEY_SEARCH_CUE_LIST_METHOD, "原生");
         hookSearchCueList(HookTargets.KEY_SEARCH_CUE_KMP_LIST_METHOD, "KMP");
+    }
+
+    private void hookSearchCueDisplay() {
+        try {
+            Method method = cachedTargets.method(HookTargets.KEY_SEARCH_CUE_DISPLAY_METHOD);
+            if (method == null) {
+                XposedBridge.log("FQHook+SearchWord: 未找到搜索页提示词显示入口，跳过");
+                return;
+            }
+            if (method.getReturnType() != void.class || method.getParameterTypes().length != 1
+                    || !"com.dragon.read.rpc.model.SearchCueWord".equals(method.getParameterTypes()[0].getName())) {
+                XposedBridge.log("FQHook+SearchWord: 搜索页提示词显示入口签名不兼容，跳过: " + method);
+                return;
+            }
+            XposedBridge.hookMethod(method, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    Object word = searchCueWordFilter.displayWord(param.args[0]);
+                    if (word != param.args[0]) {
+                        param.args[0] = word;
+                        XposedBridge.log("FQHook+SearchWord: 搜索页推荐提示替换为通用提示");
+                    }
+                }
+            });
+            XposedBridge.log("FQHook+SearchWord: 已安装搜索页提示词显示清理: " + method);
+        } catch (Throwable throwable) {
+            HookUtils.logError("FQHook+SearchWord: 搜索页提示词显示 Hook 失败: ", throwable);
+        }
     }
 
     private void hookSearchCueList(String key, final String label) {

@@ -1,7 +1,6 @@
 package com.fuck.fanqie;
 
 public final class HookTargets {
-    public static final String KEY_ABTEST_METHOD = "method_abtest";
     public static final String KEY_AD_CONFIG_METHOD = "method_ad_config";
     public static final String KEY_AD_FREE_CLASS = "class_ad_free";
     public static final String KEY_AD_FREE_METHOD = "method_ad_free";
@@ -26,6 +25,7 @@ public final class HookTargets {
     public static final String KEY_MY_PAGE_KMP_QUICK_METHOD = "method_my_page_kmp_quick";
     public static final String KEY_BOOKSHELF_BANNER_LIST_METHOD = "method_bookshelf_banner_list";
     public static final String KEY_BOOKSHELF_BANNER_FIRST_METHOD = "method_bookshelf_banner_first";
+    public static final String KEY_COVER_ORIGINAL_SOURCE_METHOD = "method_cover_original_source";
     public static final String KEY_COVER_TEXT_RENDER_METHOD = "method_cover_text_render";
     public static final String KEY_COVER_IMAGE_RENDER_METHOD = "method_cover_image_render";
     public static final String KEY_CHAPTER_DECRYPT_METHOD = "method_chapter_decrypt";
@@ -47,8 +47,11 @@ public final class HookTargets {
     public static final String KEY_MY_PAGE_SEARCH_BAR_METHOD = "method_my_page_search_bar";
     public static final String KEY_MY_PAGE_SETTINGS_CLICK_METHOD = "method_my_page_settings_click";
     public static final String KEY_MY_PAGE_VIP_ENTRANCE_METHOD = "method_my_page_vip_entrance";
-    public static final String KEY_POP_METHOD = "method_pop";
     public static final String KEY_RED_DOT_METHOD = "method_red_dot";
+    public static final String KEY_MINE_RED_DOT_GATE_METHOD = "method_mine_red_dot_gate";
+    public static final String KEY_BOTTOM_BADGE_METHOD = "method_bottom_badge";
+    public static final String KEY_MINE_TAB_BADGE_METHOD = "method_mine_tab_badge";
+    public static final String KEY_MINE_SIDEBAR_BADGE_METHOD = "method_mine_sidebar_badge";
     public static final String KEY_READER_DIRECTORY_PRELOAD_CLASS = "class_reader_directory_preload";
     public static final String KEY_SETTINGS_NATIVE_INSERT_METHOD = "method_settings_native_insert";
     public static final String KEY_SETTINGS_KMP_INSERT_METHOD = "method_settings_kmp_insert";
@@ -61,6 +64,7 @@ public final class HookTargets {
     public static final String KEY_SEARCH_TABS_METHOD = "method_search_tabs";
     public static final String KEY_SEARCH_PARSE_METHOD = "method_search_parse";
     public static final String KEY_SEARCH_AUTO_FILL_METHOD = "method_search_auto_fill";
+    public static final String KEY_SEARCH_CUE_DISPLAY_METHOD = "method_search_cue_display";
     public static final String KEY_SEARCH_CUE_LIST_METHOD = "method_search_cue_list";
     public static final String KEY_SEARCH_CUE_KMP_LIST_METHOD = "method_search_cue_kmp_list";
     public static final String KEY_SPLASH_K1_METHOD = "method_splash_k1";
@@ -71,7 +75,6 @@ public final class HookTargets {
     public static final String KEY_VIP_INFO_MODEL_CLASS = "class_vip_info_model";
 
     private static final String[] ALL_KEYS = new String[]{
-            KEY_ABTEST_METHOD,
             KEY_AD_CONFIG_METHOD,
             KEY_AD_FREE_CLASS,
             KEY_AD_FREE_METHOD,
@@ -96,6 +99,7 @@ public final class HookTargets {
             KEY_MY_PAGE_KMP_QUICK_METHOD,
             KEY_BOOKSHELF_BANNER_LIST_METHOD,
             KEY_BOOKSHELF_BANNER_FIRST_METHOD,
+            KEY_COVER_ORIGINAL_SOURCE_METHOD,
             KEY_COVER_TEXT_RENDER_METHOD,
             KEY_COVER_IMAGE_RENDER_METHOD,
             KEY_CHAPTER_DECRYPT_METHOD,
@@ -117,8 +121,11 @@ public final class HookTargets {
             KEY_MY_PAGE_SEARCH_BAR_METHOD,
             KEY_MY_PAGE_SETTINGS_CLICK_METHOD,
             KEY_MY_PAGE_VIP_ENTRANCE_METHOD,
-            KEY_POP_METHOD,
             KEY_RED_DOT_METHOD,
+            KEY_MINE_RED_DOT_GATE_METHOD,
+            KEY_BOTTOM_BADGE_METHOD,
+            KEY_MINE_TAB_BADGE_METHOD,
+            KEY_MINE_SIDEBAR_BADGE_METHOD,
             KEY_READER_DIRECTORY_PRELOAD_CLASS,
             KEY_SETTINGS_NATIVE_INSERT_METHOD,
             KEY_SETTINGS_KMP_INSERT_METHOD,
@@ -131,6 +138,7 @@ public final class HookTargets {
             KEY_SEARCH_TABS_METHOD,
             KEY_SEARCH_PARSE_METHOD,
             KEY_SEARCH_AUTO_FILL_METHOD,
+            KEY_SEARCH_CUE_DISPLAY_METHOD,
             KEY_SEARCH_CUE_LIST_METHOD,
             KEY_SEARCH_CUE_KMP_LIST_METHOD,
             KEY_SPLASH_K1_METHOD,

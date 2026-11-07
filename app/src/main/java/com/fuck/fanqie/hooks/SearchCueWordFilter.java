@@ -12,7 +12,7 @@ import de.robv.android.xposed.XposedHelpers;
 /** 只清理搜索框推荐词数据，不触碰输入框或用户输入。 */
 final class SearchCueWordFilter {
     private static final String CUE_WORD_CLASS = "com.dragon.read.rpc.model.SearchCueWord";
-    private static final String[] DISPLAY_FIELDS = {"text", "prefixText", "displayText", "displayTextV2"};
+    private static final String[] DISPLAY_FIELDS = {"text", "prefixText", "displayText", "displayTextV2", "cueFormatStr"};
     private final Set<String> reportedFailures = Collections.synchronizedSet(new HashSet<String>());
 
     int clearList(List<?> words) {
@@ -74,6 +74,22 @@ final class SearchCueWordFilter {
             }
         }
         return changed;
+    }
+
+    /** 显示入口使用独立通用提示副本，避免清空后宿主跳过更新而残留旧 hint。 */
+    Object displayWord(Object word) {
+        if (word == null || !CUE_WORD_CLASS.equals(word.getClass().getName())) return word;
+        try {
+            if (XposedHelpers.getBooleanField(word, "isDefault")) return word;
+            Object copy = word.getClass().getDeclaredConstructor().newInstance();
+            for (String name : DISPLAY_FIELDS) XposedHelpers.setObjectField(copy, name, "");
+            XposedHelpers.setObjectField(copy, "text", "请输入书名或作者名");
+            XposedHelpers.setBooleanField(copy, "isDefault", true);
+            return copy;
+        } catch (Throwable throwable) {
+            reportFailure(CUE_WORD_CLASS + ".display", throwable);
+            return word;
+        }
     }
 
     private void reportFailure(String target, Throwable throwable) {

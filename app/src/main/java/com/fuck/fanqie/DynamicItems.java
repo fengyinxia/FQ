@@ -26,6 +26,8 @@ public final class DynamicItems {
     public static final String RECOMMEND = "recommend";
     public static final String TOP_TABS = "top_tabs";
     public static final String SEARCH = "search_results";
+    public static final String BANNERS = "bookshelf_banners";
+    public static final String POPUPS = "popup_control";
     private static final String FILE = "fq_dynamic_items";
     private static final int LIMIT = 384;
     public static final class Item {
@@ -42,7 +44,7 @@ public final class DynamicItems {
     private static final Map<String, Boolean> running = new HashMap<>();
     private static SharedPreferences preferences;
     private static Handler handler;
-    private static long hostVersion;
+    private static long hostVersion, bannerMigrationVersion;
     private static boolean dirty, scheduled, migrating;
     private static boolean catalogWritable = true;
     private static final Runnable FLUSH = () -> {
@@ -57,6 +59,7 @@ public final class DynamicItems {
                 }
                 SharedPreferences.Editor editor = preferences.edit().putString("catalog", array.toString());
                 if (!preferences.contains("migration_version")) editor.putLong("migration_version", hostVersion);
+                if (!preferences.contains("banner_migration_version")) editor.putLong("banner_migration_version", bannerMigrationVersion);
                 if (!editor.commit()) throw new IllegalStateException("目录写入失败");
                 dirty = false;
             } catch (Throwable throwable) {
@@ -75,6 +78,8 @@ public final class DynamicItems {
         migrating = !preferences.contains("migration_version");
         try {
             hostVersion = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
+            bannerMigrationVersion = preferences.getLong("banner_migration_version", hostVersion);
+            if (!preferences.contains("banner_migration_version")) dirty = true;
             JSONArray array = new JSONArray(preferences.getString("catalog", "[]"));
             // 越界或单条损坏时仍加载后续有效条目，但本进程禁止改写目录原文。
             if (array.length() > LIMIT) catalogWritable = false;
@@ -119,7 +124,8 @@ public final class DynamicItems {
         }
         // 初次目录迁移只对当前版本遇到的明确旧项目继承规则；此后新项目一律放行。
         boolean initial = old != null ? old.initialBlocked
-                : catalogWritable && migrating && legacyBlocked
+                : catalogWritable && legacyBlocked
+                && (migrating || (BANNERS.equals(area) && bannerMigrationVersion == hostVersion))
                 && !Boolean.TRUE.equals(preferences.getAll().get("customized_" + area));
         if (old == null) {
             items.put(key, new Item(area, id, safeLabel(label, id), hostVersion, hostVersion, initial));
@@ -189,7 +195,10 @@ public final class DynamicItems {
                 && id.length() <= 180 && id.matches("[A-Za-z0-9_:/.-]+");
     }
     private static boolean validArea(String area) {
-        return MINE.equals(area) || RECOMMEND.equals(area) || TOP_TABS.equals(area) || SEARCH.equals(area);
+        return MINE.equals(area) || RECOMMEND.equals(area) || TOP_TABS.equals(area) || SEARCH.equals(area)
+                || BANNERS.equals(area) || POPUPS.equals(area)
+                // 只兼容保留已安装动态版的历史目录，避免整份目录被判损坏；无展示或Hook消费者。
+                || "search_entry".equals(area);
     }
     /** 只刷新目录元数据；失败不撤销独立保存的屏蔽选择，也不阻止宿主重启。 */
     public static synchronized boolean flushPending() {

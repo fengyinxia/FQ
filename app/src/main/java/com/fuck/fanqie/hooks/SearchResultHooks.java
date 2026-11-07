@@ -109,6 +109,15 @@ public final class SearchResultHooks {
                 if (!(param.args[0] instanceof List<?>)) return;
                 try { param.args[0] = SearchResultFilter.filter((List<?>) param.args[0]); }
                 catch (Throwable error) { HookUtils.logError("FQHook+SearchFilter: 卡片过滤失败: ", error); }
+                if (com.fuck.fanqie.PluginSettings.enabled("original_search")
+                        || com.fuck.fanqie.PluginSettings.enabled("cover_title")) {
+                    try {
+                        param.args[0] = OriginalBookTitles.cells((List<?>) param.args[0],
+                                com.fuck.fanqie.PluginSettings.enabled("original_search"));
+                    } catch (Throwable error) {
+                        HookUtils.logError("FQHook+OriginalTitle: 搜索展示副本处理失败，保留宿主: ", error);
+                    }
+                }
             }
         });
     }

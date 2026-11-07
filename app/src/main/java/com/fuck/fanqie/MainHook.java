@@ -4,7 +4,6 @@ import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.PackageInfo;
-import android.os.Process;
 
 import com.fuck.fanqie.cache.CachedTargets;
 import com.fuck.fanqie.cache.TargetScanResult;
@@ -35,25 +34,6 @@ public class MainHook implements IXposedHookLoadPackage {
         }
 
         String processName = loadPackageParam.processName;
-        if (processName != null && processName.endsWith(":push")) {
-            XposedHelpers.findAndHookMethod(ContextWrapper.class, "attachBaseContext", Context.class,
-                    new XC_MethodHook() {
-                        @Override protected void afterHookedMethod(MethodHookParam param) {
-                            if (!(param.thisObject instanceof Application)) return;
-                            try {
-                                PluginSettings.initialize((Context) param.args[0], false);
-                                if (PluginSettings.enabled("push")) {
-                                    log("按配置终止推送进程");
-                                    Process.killProcess(Process.myPid());
-                                }
-                            } catch (Throwable throwable) {
-                                log("推送配置读取失败，保留宿主进程: " + throwable);
-                            }
-                        }
-                    });
-            return;
-        }
-
         if (processName == null || !processName.equals(loadPackageParam.packageName)) {
             log("跳过非主进程 Hook: " + processName);
             return;

@@ -23,7 +23,6 @@ public class AdFinder extends BaseFinder {
     public void find(DexKitBridge bridge) {
         findAdRelatedTargets(bridge);
         findLuckyDogMethod(bridge);
-        findPopMethod(bridge);
     }
 
     private void findAdRelatedTargets(DexKitBridge bridge) {
@@ -108,18 +107,4 @@ public class AdFinder extends BaseFinder {
         }
     }
 
-    private void findPopMethod(DexKitBridge bridge) {
-        try {
-            MethodData popMethod = first(bridge.findMethod(
-                    FindMethod.create().matcher(
-                            MethodMatcher.create().usingStrings(new String[]{
-                                    "调试模式，跳过所有弹窗限制"
-                            })
-                    )
-            ));
-            cacheMethod(HookTargets.KEY_POP_METHOD, popMethod);
-        } catch (Throwable throwable) {
-            log("查找弹窗方法失败", throwable);
-        }
-    }
 }

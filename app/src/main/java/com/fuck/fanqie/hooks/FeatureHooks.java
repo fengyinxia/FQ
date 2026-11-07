@@ -5,6 +5,7 @@ import android.view.View;
 
 import com.fuck.fanqie.HookTargets;
 import com.fuck.fanqie.PluginSettings;
+import com.fuck.fanqie.DynamicItems;
 import com.fuck.fanqie.cache.CachedTargets;
 
 import java.lang.reflect.Method;
@@ -24,54 +25,17 @@ public class FeatureHooks extends BaseHook {
 
     @Override
     public void apply() {
-        applyAbtestHooks();
-        applyReaderBackHooks();
         applyPopProxyHooks();
         applyUpdateHooks();
         applyChapterControlHooks();
     }
 
-    public void applyAbtestHooks() {
-        if (!PluginSettings.enabled("ab")) return;
-        try {
-            Method method = cachedTargets.method(HookTargets.KEY_ABTEST_METHOD);
-            if (method == null) {
-                return;
-            }
-            XposedBridge.hookMethod(method, new XC_MethodHook() {
-                @Override
-                protected void beforeHookedMethod(MethodHookParam param) {
-                    param.setResult(null);
-                }
-            });
-            XposedBridge.log("FQHook: 已禁用AB测试功能");
-        } catch (Throwable throwable) {
-            HookUtils.logError("FQHook+applyAbtestHooks: 禁用AB测试功能失败: ", throwable);
-        }
-    }
-
-    public void applyReaderBackHooks() {
-        if (!PluginSettings.enabled("reader_back")) return;
-        try {
-            Class<?> readerActivityClass = XposedHelpers.findClass("com.dragon.read.reader.ui.ReaderActivity", hostClassLoader);
-            XposedHelpers.findAndHookMethod(readerActivityClass, "onBackPressed", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    ((Activity) param.thisObject).finish();
-                }
-            });
-            XposedBridge.log("FQHook+applyReaderBackHooks: 已Hook ReaderActivity.onBackPressed");
-        } catch (Throwable throwable) {
-            HookUtils.logError("FQHook+applyReaderBackHooks: Hook ReaderActivity.onBackPressed 失败: ", throwable);
-        }
-    }
-
     public void applyPopProxyHooks() {
-        if (!PluginSettings.enabled("popup")) return;
         try {
             Class<?> popProxyClass = XposedHelpers.findClass("com.dragon.read.pop.PopProxy", hostClassLoader);
             Class<?> propertiesClass = XposedHelpers.findClass("com.dragon.read.pop.IProperties", hostClassLoader);
             Class<?> listenerClass = XposedHelpers.findClass("com.dragon.read.pop.IPopProxy$IListener", hostClassLoader);
+            Class<?> definer = XposedHelpers.findClass("com.dragon.read.pop.PopDefiner", hostClassLoader);
             int hooked = 0;
             for (Method method : popProxyClass.getDeclaredMethods()) {
                 Class<?>[] params = method.getParameterTypes();
@@ -86,37 +50,42 @@ public class FeatureHooks extends BaseHook {
                 XposedBridge.hookMethod(method, new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) {
-                        if (shouldAllowPopup(param.args[1])) {
-                            return;
+                        try {
+                            Object raw = param.args[1];
+                            if (protectedPopup(raw)) return;
+                            Object properties = XposedHelpers.callStaticMethod(definer, "a", raw);
+                            if (protectedPopup(properties)) return;
+                            Object id = XposedHelpers.callMethod(properties, "getID");
+                            Object name = XposedHelpers.callMethod(properties, "getPrivateName");
+                            String identity = ControlItemLabels.popupIdentity(id);
+                            if (identity == null || !DynamicItems.observe(DynamicItems.POPUPS, identity,
+                                    ControlItemLabels.popupLabel(name, id), false)) return;
+                            // 与宿主拒绝展示协议一致：通知 intercept，保留队列和完成回调语义。
+                            Object listener = param.args[3];
+                            if (listener != null) XposedHelpers.callMethod(listener, "intercept");
+                            param.setResult(null);
+                            XposedBridge.log("FQHook+PopProxy: 已按选择拦截 " + identity);
+                        } catch (Throwable throwable) {
+                            HookUtils.logError("FQHook+PopProxy: 无法识别或完成拦截，保留宿主: ", throwable);
                         }
-                        Object listener = param.args[3];
-                        if (listener != null) {
-                            try {
-                                XposedHelpers.callMethod(listener, "intercept");
-                            } catch (Throwable throwable) {
-                                HookUtils.logError("FQHook+PopProxy: 通知弹窗拦截失败: ", throwable);
-                            }
-                        }
-                        param.setResult(null);
                     }
                 });
                 hooked++;
             }
-            XposedBridge.log("FQHook+PopProxy: 已拦截 " + hooked + " 个弹窗入口 (privacy_dialog 放行)");
+            XposedBridge.log("FQHook+PopProxy: 已安装 " + hooked + " 个动态弹窗入口（隐私/功能性弹窗放行）");
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+applyPopProxyHooks: Hook PopProxy失败: ", throwable);
         }
     }
 
-    private boolean shouldAllowPopup(Object properties) {
-        if (properties == null) {
-            return true;
-        }
+    private boolean protectedPopup(Object properties) {
+        if (properties == null) return true;
         try {
             Object privateName = XposedHelpers.callMethod(properties, "getPrivateName");
             Object id = XposedHelpers.callMethod(properties, "getID");
-            return (privateName instanceof String && ((String) privateName).contains("privacy_dialog"))
-                    || (id instanceof String && ((String) id).contains("privacy_dialog"));
+            Object functionality = XposedHelpers.callMethod(properties, "isFunctionality");
+            return !Boolean.FALSE.equals(functionality)
+                    || ControlItemLabels.protectedPopup(id, privateName);
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+PopProxy: 无法识别弹窗类型，保留原行为: ", throwable);
             return true;
@@ -144,6 +113,31 @@ public class FeatureHooks extends BaseHook {
 
     private void applyCoverTitleRenderHooks() {
         try {
+            Method source = cachedTargets.method(HookTargets.KEY_COVER_ORIGINAL_SOURCE_METHOD);
+            if (source == null) {
+                XposedBridge.log("FQHook+OriginalTitle: 封面原名来源缺失，仅使用已观察到的原名");
+            } else if (source.getParameterTypes().length == 1
+                    && "com.dragon.read.rpc.model.ApiBookInfo".equals(source.getParameterTypes()[0].getName())
+                    && "com.dragon.read.reader.bookcover.BookCoverInfo".equals(source.getReturnType().getName())) {
+                XposedBridge.hookMethod(source, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam param) {
+                        if (param.hasThrowable() || param.getResult() == null) return;
+                        try {
+                            OriginalBookTitles.original(param.args[0]);
+                            param.setResult(OriginalBookTitles.cover(param.getResult()));
+                        } catch (Throwable error) {
+                            HookUtils.logError("FQHook+OriginalTitle: 封面上游原名处理失败: ", error);
+                        }
+                    }
+                });
+                XposedBridge.log("FQHook+OriginalTitle: 已安装封面原名来源: " + source);
+            } else {
+                XposedBridge.log("FQHook+OriginalTitle: 封面原名来源签名不兼容，跳过: " + source);
+            }
+        } catch (Throwable error) {
+            HookUtils.logError("FQHook+OriginalTitle: 安装封面原名来源失败: ", error);
+        }
+        try {
             final Method textMethod = cachedTargets.method(HookTargets.KEY_COVER_TEXT_RENDER_METHOD);
             if (textMethod == null || textMethod.getReturnType() != Void.TYPE
                     || java.lang.reflect.Modifier.isStatic(textMethod.getModifiers())
@@ -158,7 +152,11 @@ public class FeatureHooks extends BaseHook {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
                     if (param.args[0] != null) {
-                        XposedHelpers.setObjectField(param.args[0], "bookShortName", null);
+                        try {
+                            param.args[0] = OriginalBookTitles.cover(param.args[0]);
+                        } catch (Throwable error) {
+                            HookUtils.logError("FQHook+OriginalTitle: 封面文字副本处理失败，保留宿主: ", error);
+                        }
                     }
                 }
             });

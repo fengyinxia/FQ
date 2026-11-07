@@ -25,9 +25,11 @@ public class UIFinder extends BaseFinder {
     public void find(DexKitBridge bridge) {
         findBookshelfBannerResponseMethod(bridge);
         findRedDotMethod(bridge);
+        findMineRedDotTargets(bridge);
         findQuickAccessTargets(bridge);
         findVipRelatedTargets(bridge);
         findSearchBarMethod(bridge);
+        findSearchCueDisplayMethod(bridge);
         findSearchResultMethods(bridge);
         findFilterHomeMethod(bridge);
         findRecommendParseMethods(bridge);
@@ -46,6 +48,19 @@ public class UIFinder extends BaseFinder {
                 "com.dragon.read.component.biz.impl.bookmall.search.SearchWordDisplayView");
         findSearchCueListMethod(bridge, HookTargets.KEY_SEARCH_CUE_KMP_LIST_METHOD,
                 "com.dragon.read.kmp.bookmall.search.SearchWordDisplayViewKMP");
+    }
+
+    private void findSearchCueDisplayMethod(DexKitBridge bridge) {
+        try {
+            cacheUniqueMethod(HookTargets.KEY_SEARCH_CUE_DISPLAY_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.component.biz.impl.FanqieSearchActivity")
+                            .paramTypes("com.dragon.read.rpc.model.SearchCueWord").returnType(Void.TYPE)
+                            .addUsingField("Lcom/dragon/read/rpc/model/SearchCueWord;->cueFormatStr:Ljava/lang/String;", UsingType.Read)
+                            .addInvoke("Lcom/dragon/read/component/biz/impl/ui/speech/SearchEditTextView;->setHint(Ljava/lang/String;)V"))));
+        } catch (Throwable error) {
+            log("查找搜索页提示词显示入口失败", error);
+        }
     }
 
     private void findSearchResultMethods(DexKitBridge bridge) {
@@ -583,6 +598,49 @@ public class UIFinder extends BaseFinder {
             cacheMethod(HookTargets.KEY_MY_PAGE_SEARCH_BAR_METHOD, methodData);
         } catch (Throwable throwable) {
             log("查找我的页面搜索栏方法失败", throwable);
+        }
+    }
+
+    private void findMineRedDotTargets(DexKitBridge bridge) {
+        try {
+            cacheUniqueMethod(HookTargets.KEY_MINE_SIDEBAR_BADGE_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.component.biz.impl.mine.sidebar.SidebarPageDataManager")
+                            .modifiers(Modifier.STATIC).paramTypes("java.util.List").returnType(List.class)
+                            .addUsingField("Lcom/dragon/read/rpc/model/MsgGroup;->showUnreadCount:Z", UsingType.Read)
+                            .addUsingField("Lcom/dragon/read/rpc/model/MsgGroup;->unreadCount:I", UsingType.Read))));
+        } catch (Throwable error) {
+            log("查找侧栏未读角标展示转换失败", error);
+        }
+        try {
+            cacheUniqueMethod(HookTargets.KEY_MINE_RED_DOT_GATE_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.kmp.mine.reddot.KmpMineRedDotManager")
+                            .modifiers(Modifier.STATIC).paramTypes(Boolean.TYPE).returnType(Boolean.TYPE)
+                            .addUsingString("命中新用户保护策略，不展示红点")
+                            .addUsingString("命中老用户保护策略，不展示红点"))));
+        } catch (Throwable error) {
+            log("查找我的页共用角标展示门禁失败", error);
+        }
+        try {
+            cacheUniqueMethod(HookTargets.KEY_BOTTOM_BADGE_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create().paramTypes("int", "java.lang.String").returnType(Void.TYPE)
+                            .addUsingString("开宝箱").addUsingString("赚钱").addUsingString("签到")
+                            .addInvoke("Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V")
+                            .addInvoke("Lcom/dragon/read/util/UiUtils;->setVisibility(Landroid/view/View;I)V"))));
+        } catch (Throwable error) {
+            log("查找底栏数字文字角标展示入口失败", error);
+        }
+        try {
+            cacheUniqueMethod(HookTargets.KEY_MINE_TAB_BADGE_METHOD, bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass("com.dragon.read.pages.main.MainFragmentActivity")
+                            .paramCount(1).returnType(Void.TYPE)
+                            .addUsingString("MINE_RED_DOT_FILTER")
+                            .addUsingString("TAB_MINE showpic")
+                            .addUsingString("TAB_MINE showBubbleText"))));
+        } catch (Throwable error) {
+            log("查找我的底栏角标聚合入口失败", error);
         }
     }
 

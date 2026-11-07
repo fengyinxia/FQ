@@ -4,13 +4,11 @@ import com.fuck.fanqie.cache.CachedTargets;
 import com.fuck.fanqie.hooks.AdHooks;
 import com.fuck.fanqie.hooks.BottomTabHooks;
 import com.fuck.fanqie.hooks.FeatureHooks;
-import com.fuck.fanqie.hooks.FrameworkHooks;
 import com.fuck.fanqie.hooks.UIHooks;
 import com.fuck.fanqie.hooks.SettingsEntryHooks;
 import com.fuck.fanqie.hooks.download.DownloadHooks;
 
 public class HookApplier {
-    private final FrameworkHooks frameworkHooks;
     private final FeatureHooks featureHooks;
     private final AdHooks adHooks;
     private final BottomTabHooks bottomTabHooks;
@@ -20,7 +18,6 @@ public class HookApplier {
     private final SettingsEntryHooks settingsEntryHooks;
 
     public HookApplier(CachedTargets cachedTargets, ClassLoader hostClassLoader) {
-        frameworkHooks = new FrameworkHooks(hostClassLoader);
         featureHooks = new FeatureHooks(cachedTargets, hostClassLoader);
         adHooks = new AdHooks(cachedTargets, hostClassLoader);
         bottomTabHooks = new BottomTabHooks(cachedTargets, hostClassLoader);
@@ -33,7 +30,6 @@ public class HookApplier {
     public void applyHooks() {
         // 恢复入口先安装，不依赖任何业务Hook安装成功。各组失败互不阻断。
         install("设置入口", () -> settingsEntryHooks.apply());
-        install("框架", () -> frameworkHooks.apply());
         install("功能", () -> featureHooks.apply());
         install("广告", () -> adHooks.apply());
         install("底栏", () -> bottomTabHooks.apply());
