@@ -27,6 +27,94 @@ public class FeatureFinder extends BaseFinder {
         findChapterControlMethod(bridge);
         findKmpChapterControlMethods(bridge);
         findCoverTitleRenderMethods(bridge);
+        findBookshelfNameMethods(bridge);
+        findCoverAbstractBindMethod(bridge);
+        findCoverRankDecorateMethod(bridge);
+    }
+
+    private void findCoverRankDecorateMethod(DexKitBridge bridge) {
+        try {
+            List<MethodData> info = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramTypes("com.dragon.read.reader.bookcover.BookCoverInfo").returnType(Void.TYPE)
+                    .usingStrings("bookinfo:%s", "stack:%s")));
+            if (info.size() == 1) cacheMethod(HookTargets.KEY_COVER_INFO_BIND_METHOD, info.get(0));
+            else log("封面数据绑定入口无法唯一定位，候选数=" + info.size());
+        } catch (Throwable error) { log("查找封面数据绑定入口失败", error); }
+        try {
+            List<MethodData> scores = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramTypes("com.dragon.read.reader.bookcover.c").returnType(Void.TYPE)
+                    .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->score:Ljava/lang/String;", UsingType.Read)
+                    .usingStrings("本书评分", "score", "read_count")));
+            if (scores.size() == 1) cacheMethod(HookTargets.KEY_COVER_SCORE_BIND_METHOD, scores.get(0));
+            else log("封面评分绑定入口无法唯一定位，候选数=" + scores.size());
+        } catch (Throwable error) { log("查找封面评分绑定入口失败", error); }
+        try {
+            List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramTypes("com.dragon.read.reader.bookcover.c", "java.util.List", "android.content.Context")
+                    .returnType(Void.TYPE)
+                    .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->dianfengRankLabel:Lreadersaas/com/dragon/read/saas/rpc/model/DianfengRankLabel;", UsingType.Read)
+                    .usingStrings("top_book", "show_dianfeng_tag")));
+            if (methods.size() == 1) cacheMethod(HookTargets.KEY_COVER_RANK_DECORATE_METHOD, methods.get(0));
+            else log("封面榜单装饰入口无法唯一定位，候选数=" + methods.size());
+        } catch (Throwable error) { log("查找封面榜单装饰入口失败", error); }
+    }
+
+    private void findCoverAbstractBindMethod(DexKitBridge bridge) {
+        try {
+            List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramTypes("com.dragon.read.reader.bookcover.c").returnType(Void.TYPE)
+                    .addUsingField("Lcom/dragon/read/reader/bookcover/BookCoverInfo;->abstraction:Ljava/lang/String;", UsingType.Read)
+                    .addInvoke("Lcom/dragon/read/widget/MoreActionTextView;->setOnMoreTextClickListener(Lcom/dragon/read/widget/MoreActionTextView$c;)V")));
+            if (methods.size() != 1) {
+                log("封面简介绑定无法唯一定位，候选数=" + methods.size());
+                return;
+            }
+            cacheMethod(HookTargets.KEY_COVER_ABSTRACT_BIND_METHOD, methods.get(0));
+            List<MethodData> lines = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .declaredClass(methods.get(0).getDeclaredClassName())
+                    .paramTypes("com.dragon.read.reader.bookcover.c").returnType(Void.TYPE)
+                    .addInvoke("Landroid/widget/TextView;->setMaxLines(I)V")));
+            if (lines.size() == 1) cacheMethod(HookTargets.KEY_COVER_ABSTRACT_LINES_METHOD, lines.get(0));
+            else log("封面简介行数更新无法唯一定位，候选数=" + lines.size());
+        } catch (Throwable error) { log("查找封面简介绑定失败", error); }
+    }
+
+    private void findBookshelfNameMethods(DexKitBridge bridge) {
+        try {
+            List<MethodData> sources = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .modifiers(Modifier.STATIC).paramTypes("com.dragon.read.rpc.model.ApiBookInfo")
+                    .returnType("com.dragon.read.local.db.entity.Book")
+                    .addUsingField("Lcom/dragon/read/rpc/model/ApiBookInfo;->bookName:Ljava/lang/String;", UsingType.Read)
+                    .addUsingField("Lcom/dragon/read/local/db/entity/Book;->bookName:Ljava/lang/String;", UsingType.Write)));
+            if (sources.size() == 1) cacheMethod(HookTargets.KEY_BOOK_ORIGINAL_CREATE_METHOD, sources.get(0));
+            else log("书籍原名观察来源无法唯一定位，候选数=" + sources.size());
+            if (sources.size() != 1) throw new IllegalStateException("无法确认原名观察转换器所属类");
+            List<MethodData> updates = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .declaredClass(sources.get(0).getDeclaredClassName())
+                    .modifiers(Modifier.STATIC).paramTypes("com.dragon.read.local.db.entity.Book", "com.dragon.read.rpc.model.ApiBookInfo")
+                    .returnType(Void.TYPE)
+                    .addUsingField("Lcom/dragon/read/rpc/model/ApiBookInfo;->bookName:Ljava/lang/String;", UsingType.Read)
+                    .addUsingField("Lcom/dragon/read/local/db/entity/Book;->bookName:Ljava/lang/String;", UsingType.Write)));
+            if (updates.size() == 1) cacheMethod(HookTargets.KEY_BOOK_ORIGINAL_UPDATE_METHOD, updates.get(0));
+            else log("书籍原名更新来源无法唯一定位，候选数=" + updates.size());
+        } catch (Throwable error) { log("查找书籍原名观察来源失败", error); }
+        try {
+            List<MethodData> states = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .declaredClass("com.dragon.read.pages.bookshelf.model.BookshelfModelState")
+                    .name("getName").paramCount(0).returnType(String.class)));
+            if (states.size() == 1) cacheMethod(HookTargets.KEY_BOOKSHELF_NAME_METHOD, states.get(0));
+            else log("书架展示名称无法唯一定位，候选数=" + states.size());
+        } catch (Throwable error) { log("查找书架展示名称失败", error); }
+        try {
+            List<MethodData> formats = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .modifiers(Modifier.STATIC)
+                    .paramTypes("com.dragon.read.pages.bookshelf.model.BookshelfModel", "java.lang.Boolean")
+                    .returnType(String.class)
+                    .addInvoke("Lcom/dragon/read/pages/bookshelf/model/BookshelfModel;->getBookName()Ljava/lang/String;")
+                    .addInvoke("Lcom/dragon/read/pages/bookshelf/model/BookshelfModel;->getBookShortName()Ljava/lang/String;")));
+            if (formats.size() == 1) cacheMethod(HookTargets.KEY_BOOKSHELF_FORMAT_NAME_METHOD, formats.get(0));
+            else log("书架名称格式器无法唯一定位，候选数=" + formats.size());
+        } catch (Throwable error) { log("查找书架名称格式器失败", error); }
     }
 
     private void findCoverTitleRenderMethods(DexKitBridge bridge) {

@@ -47,11 +47,11 @@ public final class PluginSettings {
                 new String[]{"search_words", "search_page"},
                 new String[]{"清理搜索推荐词", "隐藏搜索页热榜与推荐入口"});
         multi(list, "UI 净化", "original_title", "强制原书名",
-                new String[]{"cover_title", "original_recommend", "original_search"},
-                new String[]{"封面", "推荐", "搜索"});
+                new String[]{"cover_title", "original_recommend", "original_bookshelf"},
+                new String[]{"封面", "推荐", "书架"});
         multi(list, "UI 净化", "content", "内容净化",
-                new String[]{"cover_comment", "chapter"},
-                new String[]{"隐藏封面热门评论（含 EPUB）", "隐藏章末社区区域（作者说、讨论、礼物）"});
+                new String[]{"cover_comment", "chapter", "cover_rank"},
+                new String[]{"热门评论", "章末区域", "疯癫榜"});
         multi(list, "UI 净化", "top_tabs", "顶部频道精简", new String[0], new String[0]);
         single(list, "UI 净化", "sidebar", "侧栏入口改为设置");
         single(list, "拓展", "download", "下载与导出");
@@ -110,8 +110,9 @@ public final class PluginSettings {
                 continue;
             }
             invalidKeys.remove(key);
-            // 封面沿用旧选择；新增推荐/搜索原名不在升级时自动开启。
-            boolean defaultValue = !"original_recommend".equals(key) && !"original_search".equals(key);
+            // 封面沿用旧选择；新增推荐/书架原名不在升级时自动开启。
+            boolean defaultValue = !"original_recommend".equals(key) && !"original_bookshelf".equals(key)
+                    && !"cover_rank".equals(key);
             result.put(key, value == null ? defaultValue : (Boolean) value);
         }
         return result;

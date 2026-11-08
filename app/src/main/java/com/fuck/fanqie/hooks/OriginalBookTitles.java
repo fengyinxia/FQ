@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** 三处展示入口共用规则；不改原响应、不请求详情、不把书名落盘。 */
+/** 封面、推荐及书架共用原名观察；不改原响应、不请求详情、不把书名落盘。 */
 final class OriginalBookTitles {
     private static final String API_BOOK = "com.dragon.read.rpc.model.ApiBookInfo";
     private static final String CELL = "com.dragon.read.rpc.model.CellViewData";
@@ -31,6 +31,18 @@ final class OriginalBookTitles {
         if (id == null || name == null) return null;
         synchronized (NAMES) { NAMES.put(id, name); }
         return name;
+    }
+
+    static String known(String id) {
+        synchronized (NAMES) { return NAMES.get(text(id)); }
+    }
+
+    static String bookshelf(Object model) throws ReflectiveOperationException {
+        if (model == null) return null;
+        Object type = model.getClass().getMethod("getBookType").invoke(model);
+        if (!(type instanceof Enum<?>) || !"READ".equalsIgnoreCase(((Enum<?>) type).name())) return null;
+        Object id = model.getClass().getMethod("getBookId").invoke(model);
+        return id instanceof String ? known((String) id) : null;
     }
 
     static Object cover(Object info) throws ReflectiveOperationException {
@@ -71,10 +83,14 @@ final class OriginalBookTitles {
         try {
             if (API_BOOK.equals(source.getClass().getName())) {
                 String name = original(source);
+                if (name == null && "0".equals(read(source, "bookType"))) {
+                    name = known(text(read(source, "bookId")));
+                }
                 if (!replace || name == null) return source;
                 Object result = copy(source);
                 put(result, "bookName", name);
-                put(result, "bookShortName", "");
+                // 宿主部分卡片直接取短名（包含空串），不能将其置空。
+                put(result, "bookShortName", name);
                 // 部分卡片直接使用 title；只改与原展示书名相同的标题，不动推广介绍文案。
                 Object title = read(source, "title");
                 if (title != null && (title.equals(read(source, "bookName"))
@@ -125,8 +141,36 @@ final class OriginalBookTitles {
                 put(result, "cellName", name);
                 cleanHighlight(result, source);
             }
+            if (replace) {
+                Object config = dynamicTitle(source, group);
+                if (config != null) {
+                    if (result == source) result = copy(source);
+                    put(result, "dynamicStyleConfig", config);
+                }
+            }
             return result;
         } finally { active.remove(source); }
+    }
+
+    private static Object dynamicTitle(Object cell, String group) throws ReflectiveOperationException {
+        // 只覆盖已实机确认的单书动态模板；不碰合集、推广标题、事件和跳转参数。
+        if (!"Book".equals(group)) return null;
+        Object config = read(cell, "dynamicStyleConfig");
+        Object raw = read(config, "dynamicResultConfig");
+        Object books = read(cell, "bookData");
+        if (!(raw instanceof Map<?, ?>) || !(books instanceof List<?>) || ((List<?>) books).size() != 1) return null;
+        Map<?, ?> values = (Map<?, ?>) raw;
+        String id = text(values.get("#group_id"));
+        if (id == null || !values.containsKey("#title_0")) return null;
+        Object book = ((List<?>) books).get(0);
+        if (book == null || !API_BOOK.equals(book.getClass().getName()) || !id.equals(read(book, "bookId"))) return null;
+        String name = original(book);
+        if (name == null || name.equals(values.get("#title_0"))) return null;
+        Map<Object, Object> next = new LinkedHashMap<>((Map<?, ?>) values);
+        next.put("#title_0", name);
+        Object result = copy(config);
+        put(result, "dynamicResultConfig", next);
+        return result;
     }
 
     private static String matchingName(Object cell, String id) throws ReflectiveOperationException {

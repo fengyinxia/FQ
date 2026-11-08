@@ -13,6 +13,11 @@ public final class HookTargets {
     public static final String KEY_KMP_CHAPTER_FALLBACK_METHOD = "method_kmp_chapter_fallback";
     public static final String KEY_CATEGORY_TAB_DISABLED_METHOD = "method_category_tab_disabled";
     public static final String KEY_CHECK_UPDATE_METHOD = "method_check_update";
+    public static final String KEY_COVER_INFO_BIND_METHOD = "method_cover_info_bind";
+    public static final String KEY_COVER_SCORE_BIND_METHOD = "method_cover_score_bind";
+    public static final String KEY_COVER_RANK_DECORATE_METHOD = "method_cover_rank_decorate";
+    public static final String KEY_COVER_ABSTRACT_LINES_METHOD = "method_cover_abstract_lines";
+    public static final String KEY_COVER_ABSTRACT_BIND_METHOD = "method_cover_abstract_bind";
     public static final String KEY_COVER_HOT_COMMENT_METHOD = "method_cover_hot_comment";
     public static final String KEY_COVER_EPUB_COMMENT_METHOD = "method_cover_epub_comment";
     public static final String KEY_QUICK_HISTORY_CLASS = "class_quick_history";
@@ -25,6 +30,10 @@ public final class HookTargets {
     public static final String KEY_MY_PAGE_KMP_QUICK_METHOD = "method_my_page_kmp_quick";
     public static final String KEY_BOOKSHELF_BANNER_LIST_METHOD = "method_bookshelf_banner_list";
     public static final String KEY_BOOKSHELF_BANNER_FIRST_METHOD = "method_bookshelf_banner_first";
+    public static final String KEY_BOOK_ORIGINAL_CREATE_METHOD = "method_book_original_create";
+    public static final String KEY_BOOK_ORIGINAL_UPDATE_METHOD = "method_book_original_update";
+    public static final String KEY_BOOKSHELF_NAME_METHOD = "method_bookshelf_display_name";
+    public static final String KEY_BOOKSHELF_FORMAT_NAME_METHOD = "method_bookshelf_format_name";
     public static final String KEY_COVER_ORIGINAL_SOURCE_METHOD = "method_cover_original_source";
     public static final String KEY_COVER_TEXT_RENDER_METHOD = "method_cover_text_render";
     public static final String KEY_COVER_IMAGE_RENDER_METHOD = "method_cover_image_render";
@@ -87,6 +96,11 @@ public final class HookTargets {
             KEY_KMP_CHAPTER_FALLBACK_METHOD,
             KEY_CATEGORY_TAB_DISABLED_METHOD,
             KEY_CHECK_UPDATE_METHOD,
+            KEY_COVER_INFO_BIND_METHOD,
+            KEY_COVER_SCORE_BIND_METHOD,
+            KEY_COVER_RANK_DECORATE_METHOD,
+            KEY_COVER_ABSTRACT_LINES_METHOD,
+            KEY_COVER_ABSTRACT_BIND_METHOD,
             KEY_COVER_HOT_COMMENT_METHOD,
             KEY_COVER_EPUB_COMMENT_METHOD,
             KEY_QUICK_HISTORY_CLASS,
@@ -99,6 +113,10 @@ public final class HookTargets {
             KEY_MY_PAGE_KMP_QUICK_METHOD,
             KEY_BOOKSHELF_BANNER_LIST_METHOD,
             KEY_BOOKSHELF_BANNER_FIRST_METHOD,
+            KEY_BOOK_ORIGINAL_CREATE_METHOD,
+            KEY_BOOK_ORIGINAL_UPDATE_METHOD,
+            KEY_BOOKSHELF_NAME_METHOD,
+            KEY_BOOKSHELF_FORMAT_NAME_METHOD,
             KEY_COVER_ORIGINAL_SOURCE_METHOD,
             KEY_COVER_TEXT_RENDER_METHOD,
             KEY_COVER_IMAGE_RENDER_METHOD,

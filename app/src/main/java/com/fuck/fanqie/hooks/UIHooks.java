@@ -599,7 +599,7 @@ public class UIHooks extends BaseHook {
                         }
                         if (!recommend) return;
                         Object cell = param.args[0];
-                        if (PluginSettings.enabled("original_recommend") || PluginSettings.enabled("cover_title")) {
+                        if (PluginSettings.any("original_recommend", "cover_title", "original_bookshelf")) {
                             try {
                                 cell = OriginalBookTitles.cell(cell, PluginSettings.enabled("original_recommend"));
                                 param.args[0] = cell;
@@ -621,6 +621,7 @@ public class UIHooks extends BaseHook {
                         HookUtils.logError("FQHook+RecommendFlow: 场景过滤失败，保留原行为: ", throwable);
                     }
                 }
+
             });
             XposedBridge.log("FQHook+RecommendFlow: 已安装场景解析过滤 " + key + ": " + method);
         } catch (Throwable throwable) {

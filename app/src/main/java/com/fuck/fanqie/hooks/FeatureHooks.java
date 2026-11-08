@@ -2,6 +2,9 @@ package com.fuck.fanqie.hooks;
 
 import android.app.Activity;
 import android.view.View;
+import android.widget.TextView;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 
 import com.fuck.fanqie.HookTargets;
 import com.fuck.fanqie.PluginSettings;
@@ -28,6 +31,159 @@ public class FeatureHooks extends BaseHook {
         applyPopProxyHooks();
         applyUpdateHooks();
         applyChapterControlHooks();
+        if (PluginSettings.enabled("original_bookshelf")) applyBookshelfNameHooks();
+        if (PluginSettings.enabled("cover_comment")) applyExpandedCoverAbstract();
+        if (PluginSettings.enabled("cover_rank")) applyCoverRankFilter();
+    }
+
+    private void applyCoverRankFilter() {
+        try {
+            Method decorate = cachedTargets.method(HookTargets.KEY_COVER_RANK_DECORATE_METHOD);
+            if (decorate == null || decorate.getReturnType() != Void.TYPE
+                    || decorate.getParameterTypes().length != 3
+                    || !"com.dragon.read.reader.bookcover.c".equals(decorate.getParameterTypes()[0].getName())
+                    || !java.util.List.class.isAssignableFrom(decorate.getParameterTypes()[1])
+                    || !android.content.Context.class.isAssignableFrom(decorate.getParameterTypes()[2])) {
+                XposedBridge.log("FQHook+CoverRank: 封面榜单入口缺失或不兼容");
+                return;
+            }
+            Method score = cachedTargets.method(HookTargets.KEY_COVER_SCORE_BIND_METHOD);
+            if (score == null || score.getReturnType() != Void.TYPE || score.getParameterTypes().length != 1
+                    || score.getParameterTypes()[0] != decorate.getParameterTypes()[0]) {
+                XposedBridge.log("FQHook+CoverRank: 封面评分绑定入口缺失或不兼容");
+                return;
+            }
+            XC_MethodHook normalScore = new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    try { param.args[0] = CoverRankFilter.withoutRank(param.args[0]); }
+                    catch (Throwable error) { HookUtils.logError("FQHook+CoverRank: 评分展示副本处理失败，保留宿主: ", error); }
+                }
+            };
+            Method info = cachedTargets.method(HookTargets.KEY_COVER_INFO_BIND_METHOD);
+            if (info == null || info.getReturnType() != Void.TYPE || info.getParameterTypes().length != 1
+                    || !"com.dragon.read.reader.bookcover.BookCoverInfo".equals(info.getParameterTypes()[0].getName())) {
+                XposedBridge.log("FQHook+CoverRank: 封面数据入口缺失或不兼容");
+                return;
+            }
+            XposedBridge.hookMethod(info, new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    try { param.args[0] = CoverRankFilter.normalInfo(param.args[0]); }
+                    catch (Throwable error) { HookUtils.logError("FQHook+CoverRank: 封面普通模式数据副本失败: ", error); }
+                }
+            });
+            XposedBridge.hookMethod(score, normalScore);
+            XposedBridge.hookMethod(decorate, normalScore);
+            XposedBridge.log("FQHook+CoverRank: 已安装封面正常评分模式: " + score + " / " + decorate);
+        } catch (Throwable error) { HookUtils.logError("FQHook+CoverRank: 安装榜单净化失败: ", error); }
+    }
+
+    private void applyExpandedCoverAbstract() {
+        try {
+            Method bind = cachedTargets.method(HookTargets.KEY_COVER_ABSTRACT_BIND_METHOD);
+            if (bind == null || bind.getReturnType() != Void.TYPE || bind.getParameterTypes().length != 1) {
+                XposedBridge.log("FQHook+CoverAbstract: 简介绑定目标缺失或不兼容");
+                return;
+            }
+            Field found = null;
+            for (Field field : bind.getDeclaringClass().getDeclaredFields()) {
+                if (!Modifier.isStatic(field.getModifiers())
+                        && "com.dragon.read.widget.MoreActionTextView".equals(field.getType().getName())) {
+                    if (found != null) throw new IllegalStateException("简介控件字段不唯一");
+                    found = field;
+                }
+            }
+            if (found == null) throw new IllegalStateException("未找到简介控件字段");
+            final Field abstractView = found;
+            abstractView.setAccessible(true);
+            final java.util.Set<TextView> observed = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+            XC_MethodHook expand = new XC_MethodHook() {
+                @Override protected void afterHookedMethod(MethodHookParam param) {
+                    if (param.hasThrowable()) return;
+                    try {
+                        final TextView view = (TextView) abstractView.get(param.thisObject);
+                        if (view == null) return;
+                        // 封面为固定高度；同步设无限行会被宿主空间裁剪器整块移除。
+                        if (observed.add(view)) {
+                            view.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                                    view.post(() -> expandCoverAbstract(view)));
+                        }
+                        view.post(() -> expandCoverAbstract(view));
+                    } catch (Throwable error) { HookUtils.logError("FQHook+CoverAbstract: 展开简介失败: ", error); }
+                }
+            };
+            Method lines = cachedTargets.method(HookTargets.KEY_COVER_ABSTRACT_LINES_METHOD);
+            if (lines == null || lines.getDeclaringClass() != bind.getDeclaringClass()
+                    || lines.getReturnType() != Void.TYPE || lines.getParameterTypes().length != 1
+                    || lines.getParameterTypes()[0] != bind.getParameterTypes()[0]) {
+                XposedBridge.log("FQHook+CoverAbstract: 简介行数更新目标缺失或不兼容");
+                return;
+            }
+            XposedBridge.hookMethod(bind, expand);
+            if (!lines.equals(bind)) XposedBridge.hookMethod(lines, expand);
+            XposedBridge.log("FQHook+CoverAbstract: 已安装隐藏热评时展开简介: " + bind + " / " + lines);
+        } catch (Throwable error) { HookUtils.logError("FQHook+CoverAbstract: 安装简介展开失败: ", error); }
+    }
+
+    private static void expandCoverAbstract(TextView view) {
+        if (!view.isAttachedToWindow() || view.getLineHeight() <= 0 || view.getLineCount() <= 0) return;
+        android.graphics.Rect visible = new android.graphics.Rect();
+        view.getWindowVisibleDisplayFrame(visible);
+        int[] position = new int[2];
+        view.getLocationOnScreen(position);
+        int margin = Math.round(32 * view.getResources().getDisplayMetrics().density);
+        int available = visible.bottom - position[1] - margin
+                - view.getCompoundPaddingTop() - view.getCompoundPaddingBottom();
+        int lines = Math.max(1, available / view.getLineHeight());
+        if (lines > view.getMaxLines()) {
+            view.setMaxLines(lines);
+            view.setEllipsize(null);
+            view.requestLayout();
+        }
+    }
+
+    private void applyBookshelfNameHooks() {
+        for (String key : new String[]{HookTargets.KEY_BOOK_ORIGINAL_CREATE_METHOD, HookTargets.KEY_BOOK_ORIGINAL_UPDATE_METHOD}) {
+            try {
+                Method method = cachedTargets.method(key);
+                if (method == null) {
+                    XposedBridge.log("FQHook+OriginalTitle: 书籍原名观察来源缺失: " + key);
+                    continue;
+                }
+                final int index = HookTargets.KEY_BOOK_ORIGINAL_CREATE_METHOD.equals(key) ? 0 : 1;
+                if (method.getParameterTypes().length != index + 1
+                        || !"com.dragon.read.rpc.model.ApiBookInfo".equals(method.getParameterTypes()[index].getName())) continue;
+                XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam param) {
+                        try { OriginalBookTitles.original(param.args[index]); }
+                        catch (Throwable error) { HookUtils.logError("FQHook+OriginalTitle: 观察书籍原名失败: ", error); }
+                    }
+                });
+                XposedBridge.log("FQHook+OriginalTitle: 已安装书籍原名观察: " + method);
+            } catch (Throwable error) { HookUtils.logError("FQHook+OriginalTitle: 安装原名观察失败: ", error); }
+        }
+        for (String key : new String[]{HookTargets.KEY_BOOKSHELF_NAME_METHOD, HookTargets.KEY_BOOKSHELF_FORMAT_NAME_METHOD}) {
+            try {
+                Method method = cachedTargets.method(key);
+                if (method == null || method.getReturnType() != String.class) {
+                    XposedBridge.log("FQHook+OriginalTitle: 书架展示目标缺失: " + key);
+                    continue;
+                }
+                final boolean state = HookTargets.KEY_BOOKSHELF_NAME_METHOD.equals(key);
+                if (state ? method.getParameterTypes().length != 0
+                        : method.getParameterTypes().length != 2) continue;
+                XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam param) {
+                        if (param.hasThrowable() || !(param.getResult() instanceof String)) return;
+                        try {
+                            Object model = state ? OriginalBookTitles.read(param.thisObject, "model") : param.args[0];
+                            String name = OriginalBookTitles.bookshelf(model);
+                            if (name != null) param.setResult(name);
+                        } catch (Throwable error) { HookUtils.logError("FQHook+OriginalTitle: 书架展示原名失败: ", error); }
+                    }
+                });
+                XposedBridge.log("FQHook+OriginalTitle: 已安装书架展示名称: " + method);
+            } catch (Throwable error) { HookUtils.logError("FQHook+OriginalTitle: 安装书架展示失败: ", error); }
+        }
     }
 
     public void applyPopProxyHooks() {
@@ -124,7 +280,9 @@ public class FeatureHooks extends BaseHook {
                         if (param.hasThrowable() || param.getResult() == null) return;
                         try {
                             OriginalBookTitles.original(param.args[0]);
-                            param.setResult(OriginalBookTitles.cover(param.getResult()));
+                            if (PluginSettings.enabled("cover_title")) {
+                                param.setResult(OriginalBookTitles.cover(param.getResult()));
+                            }
                         } catch (Throwable error) {
                             HookUtils.logError("FQHook+OriginalTitle: 封面上游原名处理失败: ", error);
                         }
@@ -137,6 +295,7 @@ public class FeatureHooks extends BaseHook {
         } catch (Throwable error) {
             HookUtils.logError("FQHook+OriginalTitle: 安装封面原名来源失败: ", error);
         }
+        if (!PluginSettings.enabled("cover_title")) return;
         try {
             final Method textMethod = cachedTargets.method(HookTargets.KEY_COVER_TEXT_RENDER_METHOD);
             if (textMethod == null || textMethod.getReturnType() != Void.TYPE
@@ -231,7 +390,7 @@ public class FeatureHooks extends BaseHook {
     }
 
     public void applyChapterControlHooks() {
-        if (PluginSettings.enabled("cover_title")) applyCoverTitleRenderHooks();
+        if (PluginSettings.any("cover_title", "original_bookshelf")) applyCoverTitleRenderHooks();
         if (PluginSettings.enabled("chapter")) applyKmpChapterControlHooks();
 
         if (PluginSettings.enabled("chapter")) try {
