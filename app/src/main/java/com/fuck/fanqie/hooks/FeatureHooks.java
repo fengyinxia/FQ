@@ -208,9 +208,7 @@ public class FeatureHooks extends BaseHook {
                     protected void beforeHookedMethod(MethodHookParam param) {
                         try {
                             Object raw = param.args[1];
-                            if (protectedPopup(raw)) return;
                             Object properties = XposedHelpers.callStaticMethod(definer, "a", raw);
-                            if (protectedPopup(properties)) return;
                             Object id = XposedHelpers.callMethod(properties, "getID");
                             Object name = XposedHelpers.callMethod(properties, "getPrivateName");
                             String identity = ControlItemLabels.popupIdentity(id);
@@ -228,23 +226,9 @@ public class FeatureHooks extends BaseHook {
                 });
                 hooked++;
             }
-            XposedBridge.log("FQHook+PopProxy: 已安装 " + hooked + " 个动态弹窗入口（隐私/功能性弹窗放行）");
+            XposedBridge.log("FQHook+PopProxy: 已安装 " + hooked + " 个动态弹窗入口（统一发现，仅按用户选择拦截）");
         } catch (Throwable throwable) {
             HookUtils.logError("FQHook+applyPopProxyHooks: Hook PopProxy失败: ", throwable);
-        }
-    }
-
-    private boolean protectedPopup(Object properties) {
-        if (properties == null) return true;
-        try {
-            Object privateName = XposedHelpers.callMethod(properties, "getPrivateName");
-            Object id = XposedHelpers.callMethod(properties, "getID");
-            Object functionality = XposedHelpers.callMethod(properties, "isFunctionality");
-            return !Boolean.FALSE.equals(functionality)
-                    || ControlItemLabels.protectedPopup(id, privateName);
-        } catch (Throwable throwable) {
-            HookUtils.logError("FQHook+PopProxy: 无法识别弹窗类型，保留原行为: ", throwable);
-            return true;
         }
     }
 

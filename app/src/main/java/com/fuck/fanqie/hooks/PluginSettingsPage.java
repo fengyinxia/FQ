@@ -381,7 +381,7 @@ final class PluginSettingsPage {
         List<DynamicItems.Item> items = DynamicItems.list(option.key);
         if (items.isEmpty() && option.keys.length == 0) {
             new AlertDialog.Builder(activity).setTitle(option.title)
-                    .setMessage("请浏览" + ("mine".equals(option.key) ? "我的页" : DynamicItems.SEARCH.equals(option.key) ? "搜索结果页" : DynamicItems.BANNERS.equals(option.key) ? "书架，等待 Banner 数据加载" : DynamicItems.POPUPS.equals(option.key) ? "宿主相关页面，等待弹窗申请（隐私及功能性弹窗不纳入控制）" : "top_tabs".equals(option.key) ? "书城顶部频道" : "书城推荐") + "后重试")
+                    .setMessage("请浏览" + ("mine".equals(option.key) ? "我的页" : DynamicItems.SEARCH.equals(option.key) ? "搜索结果页" : DynamicItems.BANNERS.equals(option.key) ? "书架，等待 Banner 数据加载" : DynamicItems.POPUPS.equals(option.key) ? "宿主相关页面，等待弹窗申请（所有类型均纳入识别，勾选才拦截）" : "top_tabs".equals(option.key) ? "书城顶部频道" : "书城推荐") + "后重试")
                     .setPositiveButton("知道了", null).show();
             return;
         }

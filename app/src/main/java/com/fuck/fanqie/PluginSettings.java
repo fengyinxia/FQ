@@ -47,8 +47,8 @@ public final class PluginSettings {
                 new String[]{"search_words", "search_page"},
                 new String[]{"清理搜索推荐词", "隐藏搜索页热榜与推荐入口"});
         multi(list, "UI 净化", "original_title", "强制原书名",
-                new String[]{"cover_title", "original_recommend", "original_bookshelf"},
-                new String[]{"封面", "推荐", "书架"});
+                new String[]{"cover_title", "original_recommend", "original_bookshelf", "original_novel"},
+                new String[]{"封面", "推荐", "书架", "小说"});
         multi(list, "UI 净化", "content", "内容净化",
                 new String[]{"cover_comment", "chapter", "cover_rank"},
                 new String[]{"热门评论", "章末区域", "疯癫榜"});
@@ -110,9 +110,9 @@ public final class PluginSettings {
                 continue;
             }
             invalidKeys.remove(key);
-            // 封面沿用旧选择；新增推荐/书架原名不在升级时自动开启。
+            // 封面沿用旧选择；新增推荐/书架/小说原名不在升级时自动开启。
             boolean defaultValue = !"original_recommend".equals(key) && !"original_bookshelf".equals(key)
-                    && !"cover_rank".equals(key);
+                    && !"original_novel".equals(key) && !"cover_rank".equals(key);
             result.put(key, value == null ? defaultValue : (Boolean) value);
         }
         return result;

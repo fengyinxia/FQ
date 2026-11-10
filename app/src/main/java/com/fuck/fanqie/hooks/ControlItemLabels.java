@@ -1,7 +1,5 @@
 package com.fuck.fanqie.hooks;
 
-import java.util.Locale;
-
 /** 只映射业务身份，不保存弹窗正文、Banner 书名或跳转链接。 */
 final class ControlItemLabels {
     private ControlItemLabels() { }
@@ -40,17 +38,6 @@ final class ControlItemLabels {
         if (value.isEmpty() || value.length() > 160 || !value.matches("[A-Za-z0-9_./:-]+")) return null;
         if (value.contains("://") || "null".equalsIgnoreCase(value)) return null;
         return "id/" + value;
-    }
-
-    static boolean protectedPopup(Object id, Object name) {
-        String identity = String.valueOf(id).toLowerCase(Locale.ROOT);
-        String title = String.valueOf(name).toLowerCase(Locale.ROOT);
-        String[] protectedNames = {"privacy", "permission", "consent", "agreement", "login", "auth",
-                "payment", "pay_dialog", "purchase", "隐私", "权限", "协议", "登录", "授权", "支付"};
-        for (String value : protectedNames) {
-            if (identity.contains(value) || title.contains(value)) return true;
-        }
-        return false;
     }
 
     static String popupLabel(Object name, Object id) {

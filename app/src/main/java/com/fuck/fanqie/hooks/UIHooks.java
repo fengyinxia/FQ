@@ -565,13 +565,17 @@ public class UIHooks extends BaseHook {
                 return;
             }
             final int recommendTabType;
+            final int novelTabType;
             if (sceneIndex != 4) {
-                Object type = XposedHelpers.getStaticObjectField(
-                        XposedHelpers.findClass("com.dragon.read.rpc.model.BookstoreTabType", hostClassLoader),
-                        "recommend");
+                Class<?> tabTypeClass = XposedHelpers.findClass(
+                        "com.dragon.read.rpc.model.BookstoreTabType", hostClassLoader);
+                Object type = XposedHelpers.getStaticObjectField(tabTypeClass, "recommend");
                 recommendTabType = ((Number) XposedHelpers.callMethod(type, "getValue")).intValue();
+                Object novelType = XposedHelpers.getStaticObjectField(tabTypeClass, "novel");
+                novelTabType = ((Number) XposedHelpers.callMethod(novelType, "getValue")).intValue();
             } else {
                 recommendTabType = -1;
+                novelTabType = -1;
             }
             XposedBridge.hookMethod(method, new XC_MethodHook() {
                 private final Set<String> seen = java.util.Collections.synchronizedSet(new HashSet<String>());
@@ -585,28 +589,36 @@ public class UIHooks extends BaseHook {
                     }
                     try {
                         // K/U 的第三参是 BookstoreTabType 业务值，不是页面索引。
-                        // K 也被短剧详情复用；无场景时必须正向确认 recommend，不能全局放行 null。
+                        // K 也被短剧详情复用；无场景时必须正向确认频道，不能全局放行 null。
                         boolean recommend = "BOOK_MALL_RECOMMEND".equals(name);
+                        boolean novel = "BOOK_MALL_NOVEL".equals(name);
                         if (sceneIndex != 4 && (scene == null || "BOOK_MALL".equals(name))) {
-                            recommend = param.args[2] instanceof Number
-                                    && recommendTabType == ((Number) param.args[2]).intValue();
-                            if (sceneIndex < 0 && Boolean.TRUE.equals(param.args[4])) recommend = false;
+                            boolean bookmall = !(sceneIndex < 0 && Boolean.TRUE.equals(param.args[4]));
+                            Object tabType = param.args[2];
+                            recommend = bookmall && tabType instanceof Number
+                                    && recommendTabType == ((Number) tabType).intValue();
+                            novel = bookmall && tabType instanceof Number
+                                    && novelTabType == ((Number) tabType).intValue();
                         }
                         String source = "scene=" + name + (sceneIndex != 4 ? ",tabType=" + param.args[2] : "")
                                 + ",filter=" + recommend;
                         if (seen.size() < 24 && seen.add(source)) {
                             XposedBridge.log("FQHook+RecommendFlow: 来源 " + key + " " + source);
                         }
-                        if (!recommend) return;
                         Object cell = param.args[0];
-                        if (PluginSettings.any("original_recommend", "cover_title", "original_bookshelf")) {
+                        if ((recommend || novel) && PluginSettings.any(
+                                "original_recommend", "original_novel", "cover_title", "original_bookshelf")) {
                             try {
-                                cell = OriginalBookTitles.cell(cell, PluginSettings.enabled("original_recommend"));
+                                boolean replace = PluginSettings.enabled(recommend
+                                        ? "original_recommend" : "original_novel");
+                                cell = OriginalBookTitles.cell(cell, replace);
                                 param.args[0] = cell;
                             } catch (Throwable error) {
-                                HookUtils.logError("FQHook+OriginalTitle: 推荐展示副本处理失败，保留原名规则前数据: ", error);
+                                HookUtils.logError("FQHook+OriginalTitle: 书城展示副本处理失败，保留原名规则前数据: ", error);
                             }
                         }
+                        // 小说频道只替换书名，推荐净化仍仅作用于推荐频道。
+                        if (!recommend) return;
                         String reason = recommendFilterHelper.filterTree(cell, true);
                         if (reason != null) {
                             param.setResult(new ArrayList<>());
