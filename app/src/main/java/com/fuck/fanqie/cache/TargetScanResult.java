@@ -1,6 +1,7 @@
 package com.fuck.fanqie.cache;
 
 import org.luckypray.dexkit.result.ClassData;
+import org.luckypray.dexkit.result.FieldData;
 import org.luckypray.dexkit.result.MethodData;
 
 import java.util.Collection;
@@ -27,6 +28,14 @@ public final class TargetScanResult {
             return;
         }
         entries.put(key, TargetEntry.forMethod(key, methodData.toDexMethod().serialize()));
+        report("[成功] " + key);
+    }
+
+    public void putField(String key, FieldData fieldData) {
+        if (key == null || fieldData == null) {
+            return;
+        }
+        entries.put(key, TargetEntry.forField(key, fieldData.toDexField().serialize()));
         report("[成功] " + key);
     }
 

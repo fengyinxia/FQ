@@ -10,7 +10,9 @@ import org.luckypray.dexkit.query.enums.UsingType;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassData;
+import org.luckypray.dexkit.result.FieldData;
 import org.luckypray.dexkit.result.MethodData;
+import org.luckypray.dexkit.result.UsingFieldData;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -131,7 +133,9 @@ public class UIFinder extends BaseFinder {
                 log("通用设置项父构造器不唯一，候选数=" + bases.size());
                 return;
             }
-            cacheClass(HookTargets.KEY_SETTINGS_ITEM_CLASS, bases.get(0).getDeclaredClass());
+            ClassData item = bases.get(0).getDeclaredClass();
+            cacheClass(HookTargets.KEY_SETTINGS_ITEM_CLASS, item);
+            findSettingsItemFields(bridge, item, landing.get(0));
             String constructor = landing.get(0).getDescriptor();
             cacheUniqueMethod(HookTargets.KEY_SETTINGS_NATIVE_INSERT_METHOD,
                     bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
@@ -147,6 +151,84 @@ public class UIFinder extends BaseFinder {
         } catch (Throwable throwable) {
             log("查找插件设置入口目标失败", throwable);
         }
+    }
+
+    private void findSettingsItemFields(DexKitBridge bridge, ClassData item, MethodData landing) {
+        try {
+            List<MethodData> constructors = new ArrayList<>();
+            for (MethodData method : item.getMethods()) {
+                List<String> params = method.getParamTypeNames();
+                if ("<init>".equals(method.getName()) && params.size() == 2
+                        && "java.lang.CharSequence".equals(params.get(0))) {
+                    constructors.add(method);
+                }
+            }
+            if (constructors.size() != 1) {
+                throw new IllegalStateException("文本设置项构造器不唯一，候选数=" + constructors.size());
+            }
+            MethodData constructor = constructors.get(0);
+            FieldData title = uniqueSettingsField(writtenSettingsFields(constructor, item, "java.lang.CharSequence"), "标题");
+            FieldData arrow = uniqueSettingsField(writtenSettingsFields(landing, item, "boolean"), "箭头");
+            if (!writesField(constructor, arrow) || !writesField(landing, title)) {
+                throw new IllegalStateException("设置锚点与文本构造器字段契约不一致");
+            }
+            List<FieldData> clicks = new ArrayList<>();
+            for (FieldData field : item.getFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || !Modifier.isInterface(field.getType().getModifiers())) continue;
+                List<MethodData> callbacks = new ArrayList<>();
+                for (MethodData callback : field.getType().getMethods()) {
+                    if (Modifier.isAbstract(callback.getModifiers()) && !Modifier.isStatic(callback.getModifiers())) {
+                        callbacks.add(callback);
+                    }
+                }
+                if (callbacks.size() != 1) continue;
+                MethodData callback = callbacks.get(0);
+                List<String> params = callback.getParamTypeNames();
+                if ("void".equals(callback.getReturnTypeName()) && params.size() == 3
+                        && "android.view.View".equals(params.get(0))
+                        && item.getName().equals(params.get(1)) && "int".equals(params.get(2))
+                        && writesField(landing, field) && writesField(constructor, field)) {
+                    clicks.add(field);
+                }
+            }
+            FieldData click = uniqueSettingsField(clicks, "点击");
+            List<MethodData> binders = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramTypes(item.getName(), "int").returnType(Void.TYPE)
+                    .addUsingField(title.getDescriptor(), UsingType.Read)
+                    .addUsingField(arrow.getDescriptor(), UsingType.Read)
+                    .addInvoke("Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V")
+                    .addInvoke("Lcom/dragon/read/util/kotlin/UIKt;->gone(Landroid/view/View;)V")));
+            if (binders.isEmpty()) throw new IllegalStateException("设置字段缺少原生绑定消费链");
+            scanResult.putField(HookTargets.KEY_SETTINGS_TITLE_FIELD, title);
+            scanResult.putField(HookTargets.KEY_SETTINGS_ARROW_FIELD, arrow);
+            scanResult.putField(HookTargets.KEY_SETTINGS_CLICK_FIELD, click);
+        } catch (Throwable throwable) {
+            log("查找设置项语义字段失败", throwable);
+        }
+    }
+
+    private List<FieldData> writtenSettingsFields(MethodData method, ClassData owner, String type) {
+        java.util.LinkedHashMap<String, FieldData> fields = new java.util.LinkedHashMap<>();
+        for (UsingFieldData usage : method.getUsingFields()) {
+            FieldData field = usage.getField();
+            if (usage.getUsingType().isWrite() && owner.getName().equals(field.getDeclaredClassName())
+                    && type.equals(field.getTypeName()) && !Modifier.isStatic(field.getModifiers())) {
+                fields.put(field.getDescriptor(), field);
+            }
+        }
+        return new ArrayList<>(fields.values());
+    }
+
+    private boolean writesField(MethodData method, FieldData field) {
+        for (UsingFieldData usage : method.getUsingFields()) {
+            if (usage.getUsingType().isWrite() && field.getDescriptor().equals(usage.getField().getDescriptor())) return true;
+        }
+        return false;
+    }
+
+    private FieldData uniqueSettingsField(List<FieldData> fields, String label) {
+        if (fields.size() != 1) throw new IllegalStateException("设置" + label + "字段不唯一，候选数=" + fields.size());
+        return fields.get(0);
     }
 
     private void findCategoryTabTargets(DexKitBridge bridge) {

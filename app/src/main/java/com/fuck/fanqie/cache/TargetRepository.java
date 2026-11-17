@@ -7,6 +7,8 @@ import com.fuck.fanqie.BuildConfig;
 
 import org.luckypray.dexkit.wrap.DexClass;
 import org.luckypray.dexkit.wrap.DexMethod;
+import org.luckypray.dexkit.wrap.DexField;
+import java.lang.reflect.Field;
 
 import java.io.File;
 import java.lang.reflect.Method;
@@ -101,6 +103,21 @@ public class TargetRepository {
             return new DexClass(entry.serialized).getInstance(hostClassLoader);
         } catch (Throwable throwable) {
             XposedBridge.log("FQHook+TargetRepository: 获取缓存类失败 " + key + ": " + throwable.getMessage());
+            return null;
+        }
+    }
+
+    public Field getField(String key) {
+        TargetEntry entry = snapshot.entry(key);
+        if (entry == null || entry.kind != TargetEntry.Kind.FIELD) {
+            return null;
+        }
+        try {
+            Field field = new DexField(entry.serialized).getFieldInstance(hostClassLoader);
+            field.setAccessible(true);
+            return field;
+        } catch (Throwable throwable) {
+            XposedBridge.log("FQHook+TargetRepository: 获取缓存字段失败 " + key + ": " + throwable.getMessage());
             return null;
         }
     }

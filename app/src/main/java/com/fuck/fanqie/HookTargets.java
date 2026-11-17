@@ -65,6 +65,9 @@ public final class HookTargets {
     public static final String KEY_SETTINGS_NATIVE_INSERT_METHOD = "method_settings_native_insert";
     public static final String KEY_SETTINGS_KMP_INSERT_METHOD = "method_settings_kmp_insert";
     public static final String KEY_SETTINGS_ITEM_CLASS = "class_settings_item";
+    public static final String KEY_SETTINGS_TITLE_FIELD = "field_settings_title";
+    public static final String KEY_SETTINGS_ARROW_FIELD = "field_settings_arrow";
+    public static final String KEY_SETTINGS_CLICK_FIELD = "field_settings_click";
     public static final String KEY_SETTINGS_PAGE_CREATE_METHOD = "method_settings_page_create";
     public static final String KEY_SKIN_NIGHT_METHOD = "method_skin_night";
     public static final String KEY_SKIN_CHANGE_METHOD = "method_skin_change";
@@ -148,6 +151,9 @@ public final class HookTargets {
             KEY_SETTINGS_NATIVE_INSERT_METHOD,
             KEY_SETTINGS_KMP_INSERT_METHOD,
             KEY_SETTINGS_ITEM_CLASS,
+            KEY_SETTINGS_TITLE_FIELD,
+            KEY_SETTINGS_ARROW_FIELD,
+            KEY_SETTINGS_CLICK_FIELD,
             KEY_SETTINGS_PAGE_CREATE_METHOD,
             KEY_SKIN_NIGHT_METHOD,
             KEY_SKIN_CHANGE_METHOD,

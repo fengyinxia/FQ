@@ -3,7 +3,8 @@ package com.fuck.fanqie.cache;
 public final class TargetEntry {
     public enum Kind {
         METHOD,
-        CLASS
+        CLASS,
+        FIELD
     }
 
     public final String key;
@@ -18,6 +19,10 @@ public final class TargetEntry {
 
     public static TargetEntry forMethod(String key, String serialized) {
         return new TargetEntry(key, Kind.METHOD, serialized);
+    }
+
+    public static TargetEntry forField(String key, String serialized) {
+        return new TargetEntry(key, Kind.FIELD, serialized);
     }
 
     public static TargetEntry forClass(String key, String serialized) {

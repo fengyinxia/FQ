@@ -308,8 +308,9 @@ public class FeatureFinder extends BaseFinder {
                 return;
             }
             String cardType = content.get(0).getDeclaredClassName();
+            // 参数随宿主新增展示配置而变化，只认专属卡片类型的唯一构造器。
             List<MethodData> constructors = bridge.findMethod(FindMethod.create().matcher(
-                    MethodMatcher.create().declaredClass(cardType).name("<init>").paramCount(12)));
+                    MethodMatcher.create().declaredClass(cardType).name("<init>")));
             if (constructors.size() != 1) {
                 log("KMP 章末组合卡构造器无法唯一定位，候选数=" + constructors.size());
                 return;

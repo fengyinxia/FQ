@@ -47,11 +47,9 @@ public final class SettingsEntryHooks extends BaseHook {
             }
             Constructor<?> constructor = item.getDeclaredConstructor();
             constructor.setAccessible(true);
-            // 7.4.3.32 通用模型字段契约，来自锚点构造及原生/KMP 点击消费链。
-            // 类由 DexKit 定位；字段名称尚依赖本版，类型不兼容则不注入。
-            Field title = field(item, "e", CharSequence.class);
-            Field arrow = field(item, "i", boolean.class);
-            Field click = item.getDeclaredField("n");
+            Field title = field(item, HookTargets.KEY_SETTINGS_TITLE_FIELD, CharSequence.class);
+            Field arrow = field(item, HookTargets.KEY_SETTINGS_ARROW_FIELD, boolean.class);
+            Field click = field(item, HookTargets.KEY_SETTINGS_CLICK_FIELD, null);
             Class<?> listener = click.getType();
             if (Modifier.isStatic(click.getModifiers()) || !listener.isInterface()) {
                 throw new IllegalStateException("设置项点击字段不是实例接口");
@@ -74,10 +72,12 @@ public final class SettingsEntryHooks extends BaseHook {
         }
     }
 
-    private static Field field(Class<?> type, String name, Class<?> expected) throws Exception {
-        Field field = type.getDeclaredField(name);
-        if (Modifier.isStatic(field.getModifiers()) || field.getType() != expected) {
-            throw new IllegalStateException("设置项字段不兼容: " + name);
+    private Field field(Class<?> type, String key, Class<?> expected) {
+        Field field = targets.field(key);
+        if (field == null || field.getDeclaringClass() != type
+                || Modifier.isStatic(field.getModifiers())
+                || (expected != null && field.getType() != expected)) {
+            throw new IllegalStateException("设置项字段不兼容: " + key);
         }
         field.setAccessible(true);
         return field;
